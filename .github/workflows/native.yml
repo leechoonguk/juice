@@ -1,0 +1,57 @@
+# Juice on macOS: the whole `make verify` gate (lint, typecheck, jest, Swift
+# type-check and tests, every harness check) and an unsigned build, as compile
+# gates only. The Mac app is built, signed and released on the maintainer's Mac
+# (.omp/rules/release.md) — never from here, and nothing is uploaded to a release.
+name: Native (macOS)
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'app/**'
+      # The job runs the whole gate, so a harness or Makefile change runs it too.
+      - '.omp/**'
+      - 'Makefile'
+      - '.github/workflows/native.yml'
+  pull_request:
+    paths:
+      - 'app/**'
+      - '.omp/**'
+      - 'Makefile'
+      - '.github/workflows/native.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: native-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  macos:
+    name: macOS (make verify, unsigned build)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install
+        working-directory: app
+        run: npm ci
+      # swift-check and swift-test need a Mac, so this is the one place the
+      # whole gate runs in full.
+      - name: make verify
+        run: make verify
+      - name: Build
+        run: |
+          make pods
+          xcodebuild -workspace app/macos/Juice.xcworkspace -scheme Juice-macOS \
+            -configuration Debug CODE_SIGNING_ALLOWED=NO build

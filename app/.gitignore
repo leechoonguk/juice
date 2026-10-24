@@ -1,0 +1,35 @@
+# OSX
+#
+.DS_Store
+
+# Xcode
+#
+build/
+xcuserdata
+*.xccheckout
+*.moved-aside
+DerivedData
+*.hmap
+*.xcuserstate
+**/.xcode.env.local
+
+# SwiftPM (CoreTests)
+.build/
+.swiftpm/
+
+# node.js
+#
+node_modules/
+npm-debug.log
+
+# Bundle artifact
+*.jsbundle
+
+# CocoaPods
+**/Pods/
+
+# Temporary files created by Metro to check the health of the file watcher
+.metro-health-check*
+
+# testing
+/coverage

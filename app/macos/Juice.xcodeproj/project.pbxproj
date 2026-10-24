@@ -1,0 +1,713 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		3440615BA910084BADEB134A /* libPods-Juice-macOS.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 66A09578258D12F209E3E6FE /* libPods-Juice-macOS.a */; };
+		3E5B7C21A94D60F8B2C1D4E7 /* HIDDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F2A9D3C1B8E45A6C0D9E8F1 /* HIDDescriptor.swift */; };
+		40FF82D82B6C03E05D1B37C2 /* BatteryMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F247C0F0C60E647E3CED4912 /* BatteryMonitor.swift */; };
+		422752AB5B463555C71F2F95 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 77AC963C6E70B6C430D21592 /* PrivacyInfo.xcprivacy */; };
+		4C9D2E7F1A3B5C6D8E0F2A1B /* StatusItemController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1E3F2A4B5C6D7E9F0A1B2C /* StatusItemController.swift */; };
+		3B7E1A9C2D4F6081A3C5E7F9 /* RefreshPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B7E1A9C2D4F6081A3C5E7FA /* RefreshPolicy.swift */; };
+		3B7E1A9C2D4F6081A3C5E7FB /* BluetoothEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B7E1A9C2D4F6081A3C5E7FC /* BluetoothEvents.swift */; };
+		5142014D2437B4B30078DB4F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5142014C2437B4B30078DB4F /* AppDelegate.swift */; };
+		514201522437B4B40078DB4F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 514201512437B4B40078DB4F /* Assets.xcassets */; };
+		5A1E0C0D0E0F101112131415 /* AppUpdates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E0C0D0E0F101112131416 /* AppUpdates.swift */; };
+		5A1E0C0D0E0F101112131417 /* AppUpdatesModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E0C0D0E0F101112131418 /* AppUpdatesModule.swift */; };
+		5A1E0C0D0E0F101112131419 /* AppUpdatesModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E0C0D0E0F10111213141A /* AppUpdatesModule.m */; };
+		5A7E8FE31C58693533CCBA01 /* JuiceWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1F1C4E2EEBD6BAEDB899E13F /* JuiceWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		6D69461968676235657D707F /* BatterySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 163DB43FEF19EF01740AE639 /* BatterySnapshot.swift */; };
+		7302BAB41325B3097FA9AB05 /* BatterySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 163DB43FEF19EF01740AE639 /* BatterySnapshot.swift */; };
+		9ACA374CB61AF5C9B36498BA /* JuiceBatteryModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13C5468807D0F2253B6D5866 /* JuiceBatteryModule.swift */; };
+		B00A0ADA174AACB0CF2B9D72 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 234237712E4DA390D02FB3CD /* Cocoa.framework */; };
+		BCD8B4BAE4364490844909F8 /* JuiceWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = C82020BC345AF137B42A5B25 /* JuiceWidget.swift */; };
+		D4E5F60718293A4B5C6D7E8F /* LowBatteryAlerts.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2E3F4A5B6C7D8E9F0A1B2C3 /* LowBatteryAlerts.swift */; };
+		D8AE45576FF34B8F6CC4C87C /* JuiceBatteryModule.m in Sources */ = {isa = PBXBuildFile; fileRef = DFA8C8C4218045FD6DD9B62C /* JuiceBatteryModule.m */; };
+		DEC7E4C9B249EDAF9674C29D /* BatteryReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5A6400A85563AF77FB300A1 /* BatteryReader.swift */; };
+		E195981E0D15B3081AC2903E /* BatteryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C7C8B948664A11654E8B00 /* BatteryModel.swift */; };
+		F6852D03B2B55A37150C4F6C /* JuiceWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D20320A996CA9C2B0BB751F /* JuiceWidgetBundle.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		0C0376E5C74696BEB43FE23F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E9DB740F07D7334B97DE475E;
+			remoteInfo = JuiceWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		FDAB23A6F231609F5466123F /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				5A7E8FE31C58693533CCBA01 /* JuiceWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		13C5468807D0F2253B6D5866 /* JuiceBatteryModule.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = JuiceBatteryModule.swift; sourceTree = "<group>"; };
+		163DB43FEF19EF01740AE639 /* BatterySnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BatterySnapshot.swift; sourceTree = "<group>"; };
+		1D20320A996CA9C2B0BB751F /* JuiceWidgetBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = JuiceWidgetBundle.swift; sourceTree = "<group>"; };
+		1F1C4E2EEBD6BAEDB899E13F /* JuiceWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = JuiceWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		234237712E4DA390D02FB3CD /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
+		514201492437B4B30078DB4F /* Juice.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Juice.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5142014C2437B4B30078DB4F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		514201512437B4B40078DB4F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		514201562437B4B40078DB4F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		514201592437B4B40078DB4F /* Juice.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Juice.entitlements; sourceTree = "<group>"; };
+		59C7C8B948664A11654E8B00 /* BatteryModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BatteryModel.swift; sourceTree = "<group>"; };
+		5A1E0C0D0E0F101112131416 /* AppUpdates.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppUpdates.swift; sourceTree = "<group>"; };
+		5A1E0C0D0E0F101112131418 /* AppUpdatesModule.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppUpdatesModule.swift; sourceTree = "<group>"; };
+		5A1E0C0D0E0F10111213141A /* AppUpdatesModule.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = AppUpdatesModule.m; sourceTree = "<group>"; };
+		5B3BE93941EFB0EC58ACD3FF /* Pods-Juice-macOS.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Juice-macOS.debug.xcconfig"; path = "Target Support Files/Pods-Juice-macOS/Pods-Juice-macOS.debug.xcconfig"; sourceTree = "<group>"; };
+		66A09578258D12F209E3E6FE /* libPods-Juice-macOS.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Juice-macOS.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		77AC963C6E70B6C430D21592 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = ../PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		7F2A9D3C1B8E45A6C0D9E8F1 /* HIDDescriptor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HIDDescriptor.swift; sourceTree = "<group>"; };
+		8D1E3F2A4B5C6D7E9F0A1B2C /* StatusItemController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StatusItemController.swift; sourceTree = "<group>"; };
+		3B7E1A9C2D4F6081A3C5E7FA /* RefreshPolicy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RefreshPolicy.swift; sourceTree = "<group>"; };
+		3B7E1A9C2D4F6081A3C5E7FC /* BluetoothEvents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BluetoothEvents.swift; sourceTree = "<group>"; };
+		96AD926971B33897305AAC85 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		9C9BD6B152A52DD54600FEA9 /* Pods-Juice-macOS.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Juice-macOS.release.xcconfig"; path = "Target Support Files/Pods-Juice-macOS/Pods-Juice-macOS.release.xcconfig"; sourceTree = "<group>"; };
+		A5A6400A85563AF77FB300A1 /* BatteryReader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BatteryReader.swift; sourceTree = "<group>"; };
+		C82020BC345AF137B42A5B25 /* JuiceWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = JuiceWidget.swift; sourceTree = "<group>"; };
+		D2E3F4A5B6C7D8E9F0A1B2C3 /* LowBatteryAlerts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LowBatteryAlerts.swift; sourceTree = "<group>"; };
+		DFA8C8C4218045FD6DD9B62C /* JuiceBatteryModule.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = JuiceBatteryModule.m; sourceTree = "<group>"; };
+		E8F3AE111957C4E0472D0C22 /* JuiceWidget.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = JuiceWidget.entitlements; sourceTree = "<group>"; };
+		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		F247C0F0C60E647E3CED4912 /* BatteryMonitor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BatteryMonitor.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		198B128BC3BB6FB8185D8A48 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B00A0ADA174AACB0CF2B9D72 /* Cocoa.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		514201462437B4B30078DB4F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3440615BA910084BADEB134A /* libPods-Juice-macOS.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0BDA7CAD24AD7223D6384638 /* Native */ = {
+			isa = PBXGroup;
+			children = (
+				FBE9928BE8BDC6F2C548C637 /* Core */,
+				13C5468807D0F2253B6D5866 /* JuiceBatteryModule.swift */,
+				DFA8C8C4218045FD6DD9B62C /* JuiceBatteryModule.m */,
+				5A1E0C0D0E0F101112131418 /* AppUpdatesModule.swift */,
+				5A1E0C0D0E0F10111213141A /* AppUpdatesModule.m */,
+			);
+			name = Native;
+			path = Native;
+			sourceTree = "<group>";
+		};
+		202DE32E6EFDBCF0A5CC5F0D /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				163DB43FEF19EF01740AE639 /* BatterySnapshot.swift */,
+			);
+			name = Shared;
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
+				70ADB9D9682B43DA4475A331 /* OS X */,
+				66A09578258D12F209E3E6FE /* libPods-Juice-macOS.a */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		4872D327AF8B91153BE341F5 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				5B3BE93941EFB0EC58ACD3FF /* Pods-Juice-macOS.debug.xcconfig */,
+				9C9BD6B152A52DD54600FEA9 /* Pods-Juice-macOS.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		5142014A2437B4B30078DB4F /* Juice-macOS */ = {
+			isa = PBXGroup;
+			children = (
+				5142014C2437B4B30078DB4F /* AppDelegate.swift */,
+				514201512437B4B40078DB4F /* Assets.xcassets */,
+				514201562437B4B40078DB4F /* Info.plist */,
+				514201592437B4B40078DB4F /* Juice.entitlements */,
+				0BDA7CAD24AD7223D6384638 /* Native */,
+				77AC963C6E70B6C430D21592 /* PrivacyInfo.xcprivacy */,
+			);
+			path = "Juice-macOS";
+			sourceTree = "<group>";
+		};
+		70ADB9D9682B43DA4475A331 /* OS X */ = {
+			isa = PBXGroup;
+			children = (
+				234237712E4DA390D02FB3CD /* Cocoa.framework */,
+			);
+			name = "OS X";
+			sourceTree = "<group>";
+		};
+		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Libraries;
+			sourceTree = "<group>";
+		};
+		83CBB9F61A601CBA00E9B192 = {
+			isa = PBXGroup;
+			children = (
+				5142014A2437B4B30078DB4F /* Juice-macOS */,
+				832341AE1AAA6A7D00B99B32 /* Libraries */,
+				83CBBA001A601CBA00E9B192 /* Products */,
+				2D16E6871FA4F8E400B85C8A /* Frameworks */,
+				202DE32E6EFDBCF0A5CC5F0D /* Shared */,
+				C337F8F6856A9A26B612359A /* JuiceWidget */,
+				4872D327AF8B91153BE341F5 /* Pods */,
+			);
+			indentWidth = 2;
+			sourceTree = "<group>";
+			tabWidth = 2;
+			usesTabs = 0;
+		};
+		83CBBA001A601CBA00E9B192 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				1F1C4E2EEBD6BAEDB899E13F /* JuiceWidget.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C337F8F6856A9A26B612359A /* JuiceWidget */ = {
+			isa = PBXGroup;
+			children = (
+				C82020BC345AF137B42A5B25 /* JuiceWidget.swift */,
+				1D20320A996CA9C2B0BB751F /* JuiceWidgetBundle.swift */,
+				96AD926971B33897305AAC85 /* Info.plist */,
+				E8F3AE111957C4E0472D0C22 /* JuiceWidget.entitlements */,
+			);
+			name = JuiceWidget;
+			path = JuiceWidget;
+			sourceTree = "<group>";
+		};
+		FBE9928BE8BDC6F2C548C637 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				7F2A9D3C1B8E45A6C0D9E8F1 /* HIDDescriptor.swift */,
+				A5A6400A85563AF77FB300A1 /* BatteryReader.swift */,
+				59C7C8B948664A11654E8B00 /* BatteryModel.swift */,
+				8D1E3F2A4B5C6D7E9F0A1B2C /* StatusItemController.swift */,
+				3B7E1A9C2D4F6081A3C5E7FA /* RefreshPolicy.swift */,
+				3B7E1A9C2D4F6081A3C5E7FC /* BluetoothEvents.swift */,
+				D2E3F4A5B6C7D8E9F0A1B2C3 /* LowBatteryAlerts.swift */,
+				F247C0F0C60E647E3CED4912 /* BatteryMonitor.swift */,
+				5A1E0C0D0E0F101112131416 /* AppUpdates.swift */,
+			);
+			name = Core;
+			path = Core;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		514201482437B4B30078DB4F /* Juice-macOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5142015A2437B4B40078DB4F /* Build configuration list for PBXNativeTarget "Juice-macOS" */;
+			buildPhases = (
+				1A938104A937498D81B3BD3B /* [CP] Check Pods Manifest.lock */,
+				514201452437B4B30078DB4F /* Sources */,
+				514201462437B4B30078DB4F /* Frameworks */,
+				514201472437B4B30078DB4F /* Resources */,
+				381D8A6E24576A4E00465D17 /* Bundle React Native code and images */,
+				FDAB23A6F231609F5466123F /* Embed Foundation Extensions */,
+				F985A1819AE796A05C1A08AE /* [CP] Embed Pods Frameworks */,
+				D9D930F6F30DDA3D24743EBF /* [CP] Copy Pods Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AC753EAEEB0883FB4302B04F /* PBXTargetDependency */,
+			);
+			name = "Juice-macOS";
+			productName = Juice;
+			productReference = 514201492437B4B30078DB4F /* Juice.app */;
+			productType = "com.apple.product-type.application";
+		};
+		E9DB740F07D7334B97DE475E /* JuiceWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EE3D3D9BE0226A0BACD8DCCE /* Build configuration list for PBXNativeTarget "JuiceWidget" */;
+			buildPhases = (
+				FFBBE96DDA7E58EDF0F7E086 /* Sources */,
+				198B128BC3BB6FB8185D8A48 /* Frameworks */,
+				459D19307FFD3D4515780113 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = JuiceWidget;
+			productName = JuiceWidget;
+			productReference = 1F1C4E2EEBD6BAEDB899E13F /* JuiceWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		83CBB9F71A601CBA00E9B192 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 1130;
+				TargetAttributes = {
+					13B07F861A680F5B00A75B9A = {
+						LastSwiftMigration = 1120;
+					};
+					514201482437B4B30078DB4F = {
+						CreatedOnToolsVersion = 11.4;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "Juice" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = 83CBB9F61A601CBA00E9B192;
+			productRefGroup = 83CBBA001A601CBA00E9B192 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				514201482437B4B30078DB4F /* Juice-macOS */,
+				E9DB740F07D7334B97DE475E /* JuiceWidget */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		459D19307FFD3D4515780113 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		514201472437B4B30078DB4F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				514201522437B4B40078DB4F /* Assets.xcassets in Resources */,
+				422752AB5B463555C71F2F95 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		1A938104A937498D81B3BD3B /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-Juice-macOS-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		381D8A6E24576A4E00465D17 /* Bundle React Native code and images */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Bundle React Native code and images";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "export NODE_BINARY=node\n../node_modules/react-native-macos/scripts/react-native-xcode.sh\n";
+		};
+		D9D930F6F30DDA3D24743EBF /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Juice-macOS/Pods-Juice-macOS-resources.sh",
+				"${PODS_CONFIGURATION_BUILD_DIR}/RCT-Folly/RCT-Folly_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/React-cxxreact/React-cxxreact_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/boost/boost_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/glog/glog_privacy.bundle",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RCT-Folly_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-Core_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-cxxreact_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/boost_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/glog_privacy.bundle",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Juice-macOS/Pods-Juice-macOS-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		F985A1819AE796A05C1A08AE /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Juice-macOS/Pods-Juice-macOS-frameworks.sh",
+				"${PODS_ROOT}/Sparkle/Sparkle.framework",
+				"${PODS_ROOT}/hermes-engine/destroot/Library/Frameworks/macosx/hermesvm.framework",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/Sparkle.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermesvm.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Juice-macOS/Pods-Juice-macOS-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		514201452437B4B30078DB4F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5142014D2437B4B30078DB4F /* AppDelegate.swift in Sources */,
+				9ACA374CB61AF5C9B36498BA /* JuiceBatteryModule.swift in Sources */,
+				D8AE45576FF34B8F6CC4C87C /* JuiceBatteryModule.m in Sources */,
+				3E5B7C21A94D60F8B2C1D4E7 /* HIDDescriptor.swift in Sources */,
+				DEC7E4C9B249EDAF9674C29D /* BatteryReader.swift in Sources */,
+				E195981E0D15B3081AC2903E /* BatteryModel.swift in Sources */,
+				4C9D2E7F1A3B5C6D8E0F2A1B /* StatusItemController.swift in Sources */,
+				3B7E1A9C2D4F6081A3C5E7F9 /* RefreshPolicy.swift in Sources */,
+				3B7E1A9C2D4F6081A3C5E7FB /* BluetoothEvents.swift in Sources */,
+				6D69461968676235657D707F /* BatterySnapshot.swift in Sources */,
+				5A1E0C0D0E0F101112131415 /* AppUpdates.swift in Sources */,
+				5A1E0C0D0E0F101112131417 /* AppUpdatesModule.swift in Sources */,
+				5A1E0C0D0E0F101112131419 /* AppUpdatesModule.m in Sources */,
+				D4E5F60718293A4B5C6D7E8F /* LowBatteryAlerts.swift in Sources */,
+				40FF82D82B6C03E05D1B37C2 /* BatteryMonitor.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FFBBE96DDA7E58EDF0F7E086 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BCD8B4BAE4364490844909F8 /* JuiceWidget.swift in Sources */,
+				F6852D03B2B55A37150C4F6C /* JuiceWidgetBundle.swift in Sources */,
+				7302BAB41325B3097FA9AB05 /* BatterySnapshot.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AC753EAEEB0883FB4302B04F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = JuiceWidget;
+			target = E9DB740F07D7334B97DE475E /* JuiceWidget */;
+			targetProxy = 0C0376E5C74696BEB43FE23F /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		5142015B2437B4B40078DB4F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5B3BE93941EFB0EC58ACD3FF /* Pods-Juice-macOS.debug.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = "Juice-macOS/Juice.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				DEAD_CODE_STRIPPING = NO;
+				DEVELOPMENT_TEAM = X575PLRF8N;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = "Juice-macOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+					"-lc++",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.uk.juice;
+				PRODUCT_NAME = Juice;
+				SDKROOT = macosx;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		5142015C2437B4B40078DB4F /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 9C9BD6B152A52DD54600FEA9 /* Pods-Juice-macOS.release.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = "Juice-macOS/Juice.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = X575PLRF8N;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = "Juice-macOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+					"-lc++",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.uk.juice;
+				PRODUCT_NAME = Juice;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		83CBBA201A601CBA00E9B192 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 0.0.0;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
+				LD_RUNPATH_SEARCH_PATHS = "/usr/lib/swift $(inherited)";
+				LIBRARY_SEARCH_PATHS = (
+					"$(SDKROOT)/usr/lib/swift",
+					"\"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)\"",
+					"\"$(inherited)\"",
+				);
+				MARKETING_VERSION = 0.0.0;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_CFLAGS = "$(inherited)";
+				OTHER_CPLUSPLUSFLAGS = "$(inherited)";
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
+				USE_HERMES = true;
+			};
+			name = Debug;
+		};
+		83CBBA211A601CBA00E9B192 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				COPY_PHASE_STRIP = YES;
+				CURRENT_PROJECT_VERSION = 0.0.0;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
+				LD_RUNPATH_SEARCH_PATHS = "/usr/lib/swift $(inherited)";
+				LIBRARY_SEARCH_PATHS = (
+					"$(SDKROOT)/usr/lib/swift",
+					"\"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)\"",
+					"\"$(inherited)\"",
+				);
+				MARKETING_VERSION = 0.0.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				OTHER_CFLAGS = "$(inherited)";
+				OTHER_CPLUSPLUSFLAGS = "$(inherited)";
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
+				SDKROOT = iphoneos;
+				USE_HERMES = true;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		B13AF2A4D98CF9F5261D0736 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = JuiceWidget/JuiceWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = X575PLRF8N;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = JuiceWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.uk.juice.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		DD8B404723CCD4BF7EDBE818 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = JuiceWidget/JuiceWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = X575PLRF8N;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = JuiceWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.uk.juice.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5142015A2437B4B40078DB4F /* Build configuration list for PBXNativeTarget "Juice-macOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5142015B2437B4B40078DB4F /* Debug */,
+				5142015C2437B4B40078DB4F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "Juice" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				83CBBA201A601CBA00E9B192 /* Debug */,
+				83CBBA211A601CBA00E9B192 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		EE3D3D9BE0226A0BACD8DCCE /* Build configuration list for PBXNativeTarget "JuiceWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DD8B404723CCD4BF7EDBE818 /* Release */,
+				B13AF2A4D98CF9F5261D0736 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 83CBB9F71A601CBA00E9B192 /* Project object */;
+}

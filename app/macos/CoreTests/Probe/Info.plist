@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>com.uk.juice.probe</string>
+	<key>CFBundleName</key>
+	<string>juice-probe</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Reads the battery level of your Bluetooth devices to test the battery reader.</string>
+</dict>
+</plist>
