@@ -9,7 +9,7 @@ export interface DeviceLevel {
   percent: number | null;
   /** Each battery of a device that has several: `{ left: 90, case: 40 }`. */
   parts: Record<string, number>;
-  /** `system`, `HID report` or `LE`; null when there is no level. */
+  /** `system`, `HID report` or `LE` on macOS; `Windows`, `BlueZ` or `Android` elsewhere; null when there is no level. */
   source: string | null;
   /** Why there is no level, when there is none. */
   note: string | null;

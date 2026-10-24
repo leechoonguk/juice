@@ -67,6 +67,16 @@ read-back of the feed the way installed copies fetch it. It stops before tagging
 when the repository is not public — installed copies download anonymously.
 Report the release URL it prints.
 
+Publishing also starts the CI workflows that attach the other platforms' assets
+to the same release a few minutes later: `desktop.yml` adds
+`Juice-<version>-windows-setup.exe` (+ blockmap), `…-linux-x86_64.AppImage`,
+`…-linux-amd64.deb`, `latest.yml` and `latest-linux.yml`; `native.yml` adds
+`Juice-<version>-android.apk`. CI never uploads the disk image, `appcast.xml` or
+`checksums.txt` — `make release` made those. Check the runs
+(`gh run list --limit 3`) and report if one failed; the macOS release is
+complete either way, and the Windows, Linux and Android updaters wait for their
+files.
+
 ## After
 
 ```bash

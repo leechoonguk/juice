@@ -4,5 +4,7 @@
     "types": ["jest"],
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["**/node_modules", "**/Pods"]
+  // The Windows/Linux app and its tests type-check against DOM and Node types
+  // instead (app/desktop/tsconfig.json, `make desktop-typecheck`).
+  "exclude": ["**/node_modules", "**/Pods", "desktop", "__tests__/desktop.test.ts", "__tests__/desktopBattery.test.ts"]
 }

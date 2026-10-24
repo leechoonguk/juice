@@ -15,9 +15,10 @@ import { canonical, eventWithCwd, isInsideProject, projectRoot, toolPath } from 
  * too. The policy itself:
  *
  *   - The app is TypeScript (`app/`) and its native side is Swift with thin
- *     Objective-C bridge files (`app/macos/`).
- *     Swift or Objective-C anywhere else is native code outside the projects
- *     the Xcode targets and `make swift-check` compile.
+ *     Objective-C bridge files (`app/macos/`); on Android it is Kotlin under
+ *     `app/android/app/src/main/java/com/uk/juice/` (Gradle compiles it).
+ *     Swift or Objective-C anywhere else, or Kotlin outside that package, is
+ *     native code outside the projects the build gates compile.
  *   - No Python, Ruby or shell scripts at all. Automation belongs in
  *     `.omp/hooks/` as TypeScript, runnable by a make target on every machine
  *     that has node. The CocoaPods `Podfile` and Bundler `Gemfile` are
@@ -39,6 +40,9 @@ const SCRIPT_ROOTS = [".omp/hooks/", ".omp/extensions/", "app/"];
 const NATIVE_ROOTS = ["app/macos/"];
 const FORBIDDEN_SCRIPTS = /\.(py|rb|sh|bash|zsh)$/;
 const NATIVE_SOURCES = /\.(swift|m|mm|h)$/;
+/** The Android shell's Kotlin: template entry classes, the widget provider and the JuiceBluetooth module. */
+const ANDROID_SOURCES = /\.(kt|java)$/;
+const ANDROID_ROOT = "app/android/app/src/main/java/com/uk/juice/";
 const ADHOC_SCRIPT_DIRS = /^(?:scripts|tools|bin|utils)\//;
 
 export default function strictTooling(pi: ExtensionAPI): void {
@@ -104,6 +108,16 @@ function toolingViolation(path: string): { block: true; reason: string } | null 
         "React-free 로직: app/macos/Juice-macOS/Native/Core/ 또는 app/macos/Shared/\n" +
         "RN 어댑터: app/macos/Juice-macOS/Native/*.swift + *.m\n" +
         "위젯: app/macos/JuiceWidget/",
+    };
+  }
+
+  if (ANDROID_SOURCES.test(path) && !path.startsWith(ANDROID_ROOT)) {
+    return {
+      block: true,
+      reason:
+        `\`${path}\` — Kotlin/Java lives only under ${ANDROID_ROOT} (tooling.md)\n\n` +
+        "Android shell: MainActivity, MainApplication, the widget's empty provider\n" +
+        "Native module: com/uk/juice/bluetooth/ (JuiceBluetooth)",
     };
   }
 

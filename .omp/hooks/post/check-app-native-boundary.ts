@@ -33,13 +33,25 @@
  *      conformer's own implementation is never called through the protocol,
  *      and nothing fails — measured here as a delegate callback that dropped
  *      every value it was given.
- *   7. The widget draws no AppKit-backed control — `ProgressView`, `Toggle`,
+ *   7. Platform swaps hold. The desktop bundle (`app/desktop/build.ts`) and
+ *      Metro on Android (`app/metro.config.js`) replace `app/src/native/*`
+ *      modules; each replacement exists and exports every runtime name of
+ *      the module it replaces, and a wrapper that reads a module only macOS
+ *      provides (`JuiceBattery`, `AppUpdates`) is replaced on both — else that
+ *      platform crashes at launch, and neither bundle is built by `make
+ *      verify`. A wrapper whose module only Android provides (`JuiceBluetooth`)
+ *      has no swap and is imported only from `app/mobile/src/`.
+ *   8. One implementation per language. The platform files under
+ *      `app/desktop/src/` and `app/mobile/src/` are sources and surfaces:
+ *      none declares a function or constant that `app/src/snapshot.ts`,
+ *      `app/src/updates.ts` or `app/src/battery.ts` exports — a second
+ *      threshold clamp, alert rule or version compare drifts from the shared
+ *      one, which the tests then no longer cover.
+ *   9. The widget draws no AppKit-backed control — `ProgressView`, `Toggle`,
  *      `Slider`, `TextField`, `Picker`. WidgetKit and `ImageRenderer` cannot
  *      render them: the widget gallery and the README's snapshots show a
  *      placeholder where the control should be (measured here with a
  *      `ProgressView`); shapes (`Capsule`, `Circle`) draw everywhere.
- *
- * Dormant (cause `absent`) while `app/macos/` does not exist.
  */
 import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
 // @ts-expect-error — Node builtin, not project-compiled
@@ -75,9 +87,31 @@ const NATIVE_SWIFT_DIRS = [
 ];
 
 /** JS/TS trees whose `NativeModules` reads are policed; the wrapper directory is the one exemption. */
-const SCRIPT_DIRS = ["app/src"];
+const SCRIPT_DIRS = ["app/src", "app/desktop/src", "app/mobile/src"];
 const SCRIPT_FILES = ["app/App.tsx", "app/index.js"];
 const WRAPPER_DIR = "app/src/native/";
+const JS_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx"];
+
+/** The files that swap a wrapper per platform, and how each names its target directory. */
+const SWAP_FILES = [
+  { file: "app/desktop/build.ts", platform: "Windows/Linux", base: "app/desktop" },
+  { file: "app/metro.config.js", platform: "Android", base: "app" },
+];
+
+/** Which platform ships each native module a wrapper reads: macOS in Swift, Android in Kotlin; Windows and Linux read the batteries in the Electron main process instead. */
+const MODULE_PROVIDERS: Record<string, "macOS" | "Android"> = {
+  JuiceBattery: "macOS",
+  AppUpdates: "macOS",
+  JuiceBluetooth: "Android",
+};
+
+/** The one tree bundled for Android alone (Metro `ANDROID_SWAPS` target directory). */
+const MOBILE_DIR = "app/mobile/src/";
+
+/** The platform trees held to the shared implementation (claim 8). */
+const PLATFORM_DIRS = ["app/desktop/src", "app/mobile/src"];
+const SHARED_MODULES = ["app/src/snapshot.ts", "app/src/updates.ts", "app/src/battery.ts"];
+const RUNTIME_EXPORT = /^export\s+(?:async\s+)?(?:const|function|class|let)\s+(\w+)/gm;
 
 const REACT_IMPORT = /^\s*(?:@testable\s+)?import\s+(?:class\s+|struct\s+|func\s+)?React\w*\b/;
 const RCT_SYMBOL = /\bRCT[A-Z_]\w*/;
@@ -86,7 +120,7 @@ const NATIVE_MODULES = /\bNativeModules\b/;
 const SUITE_DEFAULTS = /\bUserDefaults\s*\(\s*suiteName\s*:/;
 const SWIFT_FUNC = /\bfunc\s+(\w+)\s*(?:<[^>{]*>)?\s*\(/g;
 
-/** The widget extension: what WidgetKit and `ImageRenderer` draw, so what claim 7 polices. */
+/** The widget extension: what WidgetKit and `ImageRenderer` draw, so what claim 9 polices. */
 const WIDGET_DIR = "app/macos/JuiceWidget";
 const APPKIT_CONTROL = /\b(ProgressView|Toggle|Slider|TextField|Picker)\b\s*[({<]/;
 
@@ -186,10 +220,11 @@ export function checkAppNativeBoundarySync(): string[] {
 
   issues.push(...checkProtocolExtensionMethods());
   issues.push(...checkBridgeFiles());
+  issues.push(...checkPlatformSwaps());
+  issues.push(...checkSingleImplementation());
 
-  const scripts = [...SCRIPT_DIRS.flatMap((dir) => walk(dir, [".ts", ".tsx", ".js", ".jsx"])), ...SCRIPT_FILES];
-  for (const path of scripts) {
-    if (path.startsWith(WRAPPER_DIR) || !existsSync(join(projectRoot, path))) continue;
+  for (const path of scriptFiles()) {
+    if (path.startsWith(WRAPPER_DIR)) continue;
     eachCodeLine(path, (line, number) => {
       if (!NATIVE_MODULES.test(line)) return;
       issues.push(
@@ -402,6 +437,133 @@ function checkSelectors(bridgePath: string, adapterPath: string): string[] {
   return issues;
 }
 
+/**
+ * Claim 7: every swap names an existing file that exports what it replaces, a wrapper of a
+ * macOS-provided module is swapped on both platforms, and a wrapper of an Android-only module is
+ * imported only from `app/mobile/src/` — the one tree that bundles for Android alone.
+ */
+function checkPlatformSwaps(): string[] {
+  const wrappers = walk(WRAPPER_DIR.slice(0, -1), [".ts"]);
+  if (wrappers.length === 0) {
+    return [`${WRAPPER_DIR}: holds no wrapper — the swap check has nothing to hold the platforms to`];
+  }
+  const issues: string[] = [];
+  const modulesOf = new Map<string, string[]>();
+  for (const wrapper of wrappers) {
+    const modules = nativeModulesRead(wrapper);
+    modulesOf.set(wrapper, modules);
+    if (modules.length === 0 && NATIVE_MODULES.test(codeText(wrapper))) {
+      issues.push(`${wrapper}: reads NativeModules in a shape the check cannot attribute to a module — read one named module (NativeModules.Name)`);
+    }
+    for (const module of modules) {
+      if (MODULE_PROVIDERS[module] === undefined) {
+        issues.push(`${wrapper}: reads NativeModules.${module}, which no platform in the provider table is known to provide — add it to MODULE_PROVIDERS with its platform`);
+      }
+    }
+  }
+
+  for (const { file, platform, base } of SWAP_FILES) {
+    if (!existsSync(join(projectRoot, file))) {
+      issues.push(`${file}: missing — the ${platform} build swaps no wrapper, so it would bundle the macOS native modules`);
+      continue;
+    }
+    // Each swap entry is one line: a pattern naming `native/<module>`, then the replacement's path segments.
+    const swapped = new Map<string, string>();
+    for (const line of readFileSync(join(projectRoot, file), "utf-8").split("\n")) {
+      const module = /\\\/native\\\/(\w+)\$/.exec(line)?.[1];
+      const segments = [...line.matchAll(/'([\w.]+)'/g)].map((m) => m[1]);
+      if (module === undefined || segments.length === 0) continue;
+      const target = `${base}/${line.includes("MOBILE") ? "mobile/src/" : ""}${segments.join("/")}`;
+      swapped.set(`${WRAPPER_DIR}${module}.ts`, target);
+    }
+    if (swapped.size === 0) {
+      issues.push(`${file}: read no swap of ${WRAPPER_DIR}* — the parser is blind or the swaps moved, and every claim below would pass on nothing`);
+      continue;
+    }
+    for (const [wrapper, target] of swapped) {
+      if (!existsSync(join(projectRoot, wrapper))) {
+        issues.push(`${file}: swaps ${wrapper}, which does not exist — a stale swap`);
+        continue;
+      }
+      if (!existsSync(join(projectRoot, target))) {
+        issues.push(`${file}: swaps ${wrapper} for ${target}, which does not exist — the ${platform} bundle fails to resolve it`);
+        continue;
+      }
+      const provided = runtimeExports(target);
+      for (const name of runtimeExports(wrapper)) {
+        if (!provided.has(name)) {
+          issues.push(`${target}: replaces ${wrapper} on ${platform} but does not export ${name} — every import of it is undefined there`);
+        }
+      }
+    }
+    for (const wrapper of wrappers) {
+      const macOsModule = (modulesOf.get(wrapper) ?? []).find((module) => MODULE_PROVIDERS[module] === "macOS");
+      if (macOsModule === undefined || swapped.has(wrapper)) continue;
+      issues.push(`${wrapper}: reads NativeModules.${macOsModule}, which only macOS provides, but ${file} does not swap it — on ${platform} it finds no native module and the app fails at launch`);
+    }
+  }
+
+  for (const wrapper of wrappers) {
+    const modules = modulesOf.get(wrapper) ?? [];
+    if (modules.length === 0 || !modules.every((module) => MODULE_PROVIDERS[module] === "Android")) continue;
+    issues.push(...checkAndroidOnlyImports(wrapper));
+  }
+  return issues;
+}
+
+/** A wrapper whose module only Android provides has no swap: nothing but `app/mobile/src/` may import it. */
+function checkAndroidOnlyImports(wrapper: string): string[] {
+  const stem = wrapper.slice(WRAPPER_DIR.length).replace(/\.ts$/, "");
+  const importsIt = new RegExp(String.raw`['"][^'"]*\/native\/${stem}['"]`);
+  const issues: string[] = [];
+  for (const path of scriptFiles()) {
+    if (path.startsWith(WRAPPER_DIR) || path.startsWith(MOBILE_DIR)) continue;
+    eachCodeLine(path, (line, number) => {
+      if (!importsIt.test(line)) return;
+      issues.push(`${path}:${number}: imports ${wrapper}, which reads a module only Android provides — import it from ${MOBILE_DIR} only; elsewhere it is undefined at launch`);
+    });
+  }
+  return issues;
+}
+
+/** Claim 8: no platform file re-declares a name the shared modules export. */
+function checkSingleImplementation(): string[] {
+  const shared = new Map<string, string>();
+  for (const path of SHARED_MODULES) {
+    if (!existsSync(join(projectRoot, path))) {
+      return [`${path}: missing — the shared implementation the platform files are held to is gone`];
+    }
+    for (const name of runtimeExports(path)) shared.set(name, path);
+  }
+  const issues: string[] = [];
+  for (const dir of PLATFORM_DIRS) {
+    for (const path of walk(dir, JS_EXTENSIONS)) {
+      eachCodeLine(path, (line, number) => {
+        const declared = /^\s*(?:export\s+)?(?:async\s+)?(?:function|const|let)\s+(\w+)/.exec(line)?.[1];
+        const owner = declared === undefined ? undefined : shared.get(declared);
+        if (owner === undefined) return;
+        issues.push(`${path}:${number}: declares ${declared}, which ${owner} already exports — import the shared one; a second copy drifts from it untested`);
+      });
+    }
+  }
+  return issues;
+}
+
+/** The runtime names a module exports (types excluded): what a swap must keep. */
+function runtimeExports(path: string): Set<string> {
+  return new Set([...codeText(path).matchAll(RUNTIME_EXPORT)].map((m) => m[1]));
+}
+
+/** The native modules a wrapper reads: `NativeModules.Name`, `NativeModules['Name']` or `{ Name } = NativeModules`. */
+function nativeModulesRead(path: string): string[] {
+  const text = codeText(path);
+  const named = [...text.matchAll(/\bNativeModules\s*(?:\.\s*(\w+)|\[\s*['"](\w+)['"]\s*\])/g)].map((m) => m[1] ?? m[2]);
+  const destructured = [...text.matchAll(/\{([^}]*)\}\s*=\s*NativeModules\b/g)].flatMap((m) =>
+    m[1].split(",").map((part: string) => part.split(":")[0].trim()).filter((name: string) => name !== ""),
+  );
+  return [...new Set([...named, ...destructured])];
+}
+
 // ============================================================
 // Helpers
 // ============================================================
@@ -421,6 +583,13 @@ function walk(dir: string, extensions: string[]): string[] {
     if (extensions.some((extension) => entry.name.endsWith(extension))) found.push(path);
   }
   return found;
+}
+
+/** Every JS/TS file the `NativeModules` and import policing covers, project-relative and present on disk. */
+function scriptFiles(): string[] {
+  return [...SCRIPT_DIRS.flatMap((dir) => walk(dir, JS_EXTENSIONS)), ...SCRIPT_FILES].filter((path) =>
+    existsSync(join(projectRoot, path)),
+  );
 }
 
 /**

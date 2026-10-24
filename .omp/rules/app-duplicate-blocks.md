@@ -11,6 +11,12 @@ globs:
       - app/macos/Juice-macOS/**/*.swift
       - app/macos/Juice-macOS/**/*.m
       - app/macos/JuiceWidget/*.swift
+      - app/desktop/build.ts
+      - app/desktop/src/**/*.ts
+      - app/desktop/src/**/*.tsx
+      - app/mobile/src/**/*.ts
+      - app/mobile/src/**/*.tsx
+      - app/android/app/src/main/java/**/*.kt
 ---
 
 # App Duplicate Blocks
@@ -39,7 +45,9 @@ renumbering sections of a file that simply contained the whole run twice. The
 duplicate is the cause; this check names it.
 
 Machine check: `make check-app-duplicate-blocks` scans `app/src`,
-`app/__tests__`, the entry and config files (`App.tsx`, `index.js`,
-`metro.config.js`) and the Swift/Objective-C trees under `app/macos/`
-(`Shared/`, `Juice-macOS/`, `JuiceWidget/`). Data formats (JSON, plists,
+`app/__tests__`, the platform trees `app/desktop/src` and `app/mobile/src`, the
+entry and config files (`App.tsx`, `index.js`, `metro.config.js`,
+`desktop/build.ts`), the Swift/Objective-C trees under `app/macos/`
+(`Shared/`, `Juice-macOS/`, `JuiceWidget/`) and the Android Kotlin under
+`app/android/app/src/main/java`. Data formats (JSON, plists,
 entitlements, the Xcode project) are exempt — structural repetition is normal there.

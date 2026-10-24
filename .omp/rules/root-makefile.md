@@ -67,6 +67,12 @@ row plus the `make verify` row).
 | `make app-icon` | `swift run --package-path app/macos/CoreTests juice-icon <AppIcon.appiconset>` | Render the app icon from its Swift drawing into the asset catalog's PNG set (`CoreTests/Icon`) — the icon is code, so it is regenerated, never hand-edited |
 | `make widget-snapshots` | `swift run --package-path app/macos/CoreTests juice-widget-snapshots docs` | Render `docs/widgets-light.png` and `docs/widgets-dark.png` from the widget's own views with SwiftUI's `ImageRenderer` — requires macOS (`rule://root-readme`) |
 | `make demo` | `swift run --package-path app/macos/CoreTests juice-widget-snapshots --demo docs/demo.gif` | Record `docs/demo.gif`, the README's moving demo: the widget's own views over a scripted desk of made-up devices, frame by frame, encoded by ffmpeg — requires macOS and ffmpeg (`rule://root-readme`) |
+| `make desktop-install` | `cd app/desktop && npm ci` | Install the Windows/Linux desktop app's dependencies (Electron, electron-builder, esbuild, react-native-web) — not in `verify`, which must not need them |
+| `make desktop-build` | `node app/desktop/build.ts` | Bundle the Windows/Linux desktop app into `app/desktop/out`: the main process (which reads the batteries), the preload script and the window — `app/App.tsx` itself, with `react-native` resolved to react-native-web (through `app/desktop/src/renderer/reactNative.ts`) and the two native wrappers swapped for the preload bridge (`app/desktop/src/renderer/`) — not in `verify` |
+| `make desktop-start` | `make desktop-build` + `cd app/desktop && npx electron .` | Run the desktop app from its bundle (Windows/Linux; on macOS `make run` is the app) — not in `verify` |
+| `make desktop-typecheck` | `cd app/desktop && npx tsc --noEmit -p tsconfig.json` | Type-check the desktop app against DOM and Node types — not in `verify`, which must not need `make desktop-install`; CI runs it |
+| `make desktop-dist` | `make desktop-build` + `cd app/desktop && npx electron-builder --publish never` | Package this OS's installers into `app/desktop/release` — NSIS on Windows, AppImage + deb on Linux; `v=x.y.z` sets the version. Not in `verify`; CI attaches them to the GitHub release `make release` publishes (`.github/workflows/desktop.yml`) |
+| `make android-apk` | `cd app/android && ./gradlew assembleRelease -PjuiceVersionName=$(v)` | Build the Android APK — Release (bundled JS, Hermes) signed with the template's public debug key, so it installs by hand but is not a store build; `v=x.y.z` sets `versionName` and `versionCode` (`x*10000+y*100+z`). Needs the Android SDK and JDK 17; not in `verify`; CI attaches it to the GitHub release (`.github/workflows/native.yml`) |
 | `make verify` | `lint + typecheck + test + swift-check + swift-test + check-app-duplicate-blocks + check-app-macos-project + check-app-native-boundary + check-code-layout + check-makefiles + check-omp-hooks + check-omp-probes + check-omp-rules + check-omp-skills + check-omp-types + check-readme + check-release + check-tooling` | Run every gate that runs without Xcode |
 | `make clean` | `pluginkit -r` + `lsregister -u` the Debug app, then `rm -rf app/macos/build app/macos/CoreTests/.build app/coverage` + `jest --clearCache` | Remove build output and caches; the Debug app is unregistered first so nothing lists a deleted copy |
 | `make commit` | `git add -A -- .` + `git commit -- .` behind `verify` | Commit this project's verified changes — `m="type(scope): subject"`; the gate is a prerequisite, so the tree that is committed is the tree that passed |
@@ -103,6 +109,14 @@ whichever SDK is selected. That is why rule://app-native-boundary keeps logic
 out of the React Native adapters — code in an adapter is code only `make build`
 compiles — and why `check-app-macos-project` reads the project file instead of
 building it: a source left out of its target is visible without Xcode.
+
+## Targets Outside `verify`
+
+`desktop-install`, `desktop-build`, `desktop-start`, `desktop-typecheck`,
+`desktop-dist` and `android-apk` are deliberately not prerequisites of `verify`:
+they need `make desktop-install`, the Android SDK or Electron's download, which
+the gate must not require. `.github/workflows/desktop.yml` and `native.yml` run
+them, on the OS each installer is built for.
 
 ## Verification Status
 

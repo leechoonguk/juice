@@ -137,6 +137,26 @@
     "expect": "block"
   },
   {
+    "name": "kotlin-outside-package: Kotlin beside the shell's package is blocked",
+    "hook": "strict-tooling",
+    "tool": "write",
+    "input": {
+      "path": "app/android/app/src/main/java/Stray.kt",
+      "content": "class Stray\n"
+    },
+    "expect": "block"
+  },
+  {
+    "name": "kotlin-in-package: the JuiceBluetooth module's package is where Kotlin lives",
+    "hook": "strict-tooling",
+    "tool": "write",
+    "input": {
+      "path": "app/android/app/src/main/java/com/uk/juice/bluetooth/Example.kt",
+      "content": "package com.uk.juice.bluetooth\n"
+    },
+    "expect": "allow"
+  },
+  {
     "name": "sibling-cwd: a relative script path resolves against the call's own cwd",
     "hook": "strict-tooling",
     "tool": "write",
@@ -249,6 +269,78 @@
     "tool": "bash",
     "input": {
       "command": "npx tsc --noEmit"
+    },
+    "expect": "block"
+  },
+  {
+    "name": "direct-tool: the desktop bundler is routed to make desktop-build",
+    "hook": "strict-command-routing",
+    "tool": "bash",
+    "input": {
+      "command": "node app/desktop/build.ts"
+    },
+    "expect": "block"
+  },
+  {
+    "name": "direct-tool: electron-builder is routed to make desktop-dist",
+    "hook": "strict-command-routing",
+    "tool": "bash",
+    "input": {
+      "command": "cd app/desktop && npx electron-builder --win"
+    },
+    "expect": "block"
+  },
+  {
+    "name": "direct-tool: electron on the bundle is routed to make desktop-start",
+    "hook": "strict-command-routing",
+    "tool": "bash",
+    "input": {
+      "command": "cd app/desktop && npx electron ."
+    },
+    "expect": "block"
+  },
+  {
+    "name": "direct-tool: gradlew is routed to make android-apk",
+    "hook": "strict-command-routing",
+    "tool": "bash",
+    "input": {
+      "command": "cd app/android && ./gradlew assembleRelease"
+    },
+    "expect": "block"
+  },
+  {
+    "name": "direct-tool: npm ci in the desktop package is routed to make desktop-install",
+    "hook": "strict-command-routing",
+    "tool": "bash",
+    "input": {
+      "command": "cd app/desktop && npm ci"
+    },
+    "expect": "block"
+  },
+  {
+    "name": "docker-run: the container's own npm ci, bundler and electron-builder are the sanctioned cross-build",
+    "hook": "strict-command-routing",
+    "tool": "bash",
+    "input": {
+      "command": "docker run --rm -v \"$PWD\":/work -w /work/app/desktop node:22 sh -c \"npm ci && node build.ts && npx electron-builder --linux --publish never\""
+    },
+    "expect": "allow"
+  },
+  {
+    "name": "docker-run: gradlew inside an Android build container passes",
+    "hook": "strict-command-routing",
+    "tool": "bash",
+    "input": {
+      "command": "docker run --rm -v \"$PWD\":/work -w /work/app/android android-build ./gradlew assembleRelease"
+    },
+    "expect": "allow"
+  },
+  {
+    "name": "docker-run: a raw tool chained after the container is still routed",
+    "hook": "strict-command-routing",
+    "tool": "bash",
+    "input": {
+      "command": "docker run --rm node:22 true && npx electron-builder --win"
     },
     "expect": "block"
   },

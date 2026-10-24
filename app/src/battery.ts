@@ -35,6 +35,12 @@ export function sourceLabel(device: DeviceLevel): string {
       return 'read from the device';
     case 'LE':
       return 'read over Bluetooth LE';
+    case 'Windows':
+      return 'reported by Windows';
+    case 'BlueZ':
+      return 'reported by BlueZ';
+    case 'Android':
+      return 'reported by Android';
     default:
       return device.note ?? '';
   }

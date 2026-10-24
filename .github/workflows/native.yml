@@ -1,15 +1,24 @@
-# Juice on macOS: the whole `make verify` gate (lint, typecheck, jest, Swift
-# type-check and tests, every harness check) and an unsigned build, as compile
-# gates only. The Mac app is built, signed and released on the maintainer's Mac
-# (.omp/rules/release.md) — never from here, and nothing is uploaded to a release.
-name: Native (macOS)
+# Juice on Android and macOS (app).
+#
+# - Android: a Release APK signed with the React Native template's public
+#   debug key — installable by hand, not a store build. When `make release`
+#   publishes a release, the APK is attached to it.
+# - macOS: the whole `make verify` gate (lint, typecheck, jest, Swift
+#   type-check and tests, every harness check) and an unsigned build, as
+#   compile gates only. The Mac app is built, signed and released on the
+#   maintainer's Mac (.omp/rules/release.md) — never from here, and the disk
+#   image, appcast.xml and checksums.txt are never uploaded to a release.
+name: Native (Android, macOS)
 
 on:
+  release:
+    types: [published]
   push:
+    # Branches only: the version tag `make release` pushes is built on `release` instead.
     branches: ['**']
     paths:
       - 'app/**'
-      # The job runs the whole gate, so a harness or Makefile change runs it too.
+      # The macOS job runs the whole gate, so a harness or Makefile change runs it too.
       - '.omp/**'
       - 'Makefile'
       - '.github/workflows/native.yml'
@@ -23,7 +32,7 @@ on:
 
 concurrency:
   group: native-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'release' }}
 
 permissions:
   contents: read
@@ -33,8 +42,53 @@ defaults:
     shell: bash
 
 jobs:
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+      - name: Install
+        working-directory: app
+        run: npm ci
+      - name: Version
+        # The git tag is the version (release.md); other builds are numbered by run.
+        run: |
+          if [ "${{ github.event_name }}" = release ]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="0.0.0-ci.${{ github.run_number }}"
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - name: Build
+        run: |
+          make android-apk v="$VERSION"
+          cp app/android/app/build/outputs/apk/release/app-release.apk "Juice-$VERSION-android.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Juice-${{ env.VERSION }}-Android
+          path: Juice-*-android.apk
+          if-no-files-found: error
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" Juice-*-android.apk --repo "$GITHUB_REPOSITORY" --clobber
+
   macos:
     name: macOS (make verify, unsigned build)
+    if: github.event_name != 'release'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5

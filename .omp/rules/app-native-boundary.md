@@ -1,5 +1,5 @@
 ---
-description: React Native ↔ native boundary — logic in React-free Swift (Native/Core, Shared), adapters and bridge files stay thin, the widget imports no React and reads only the shared snapshot, screens reach native code through src/native wrappers
+description: React Native ↔ native boundary — logic in React-free Swift (Native/Core, Shared), adapters and bridge files stay thin, the widget imports no React and reads only the shared snapshot, screens reach native code through src/native wrappers, platform swaps keep the wrapper's shape
 globs:
       - app/macos/Shared/*.swift
       - app/macos/Juice-macOS/Native/**/*.swift
@@ -9,6 +9,11 @@ globs:
       - app/src/**/*.ts
       - app/src/**/*.tsx
       - app/App.tsx
+      - app/desktop/build.ts
+      - app/desktop/src/**/*.ts
+      - app/mobile/src/**/*.ts
+      - app/mobile/src/**/*.tsx
+      - app/metro.config.js
 alwaysApply: false
 ---
 
@@ -34,17 +39,27 @@ gates read. The Xcode project itself is checked as files by rule://app-macos-pro
 | Bridge files | `app/macos/Juice-macOS/Native/*.m` | `RCT_EXTERN_MODULE`/`RCT_EXTERN_METHOD` declarations of the adapter of the same stem | `<React/...>` headers |
 | Widget | `app/macos/JuiceWidget/*.swift` | The WidgetKit extension: only displays the snapshot the app published | SwiftUI, WidgetKit — never React, never a device framework |
 | Core tests | `app/macos/CoreTests/` | `Package.swift`; `Sources/JuiceCore/` (symlinks to `Shared/` and `Native/Core/`); `Tests/*.swift`, the Swift Testing suite `make swift-test` runs; the `juice-probe`, `juice-icon` and `juice-widget-snapshots` tools | Foundation, AppKit, SwiftUI, WidgetKit, Testing, `@testable import JuiceCore` — never React |
-| JS wrappers | `app/src/native/*.ts` | One typed wrapper per native module (`JuiceBattery`, `AppUpdates`) | `react-native` (`NativeModules`, `NativeEventEmitter`) |
+| JS wrappers | `app/src/native/*.ts` | One typed wrapper per native module (`JuiceBattery`, `AppUpdates` on macOS; `JuiceBluetooth` on Android) and the no-op `backgroundTasks` the Android bundle swaps for the widget | `react-native` (`NativeModules`, `NativeEventEmitter`) |
+| JS transports | `app/desktop/src/renderer/*.ts`, `app/mobile/src/*.ts(x)` | The replacements swapped in for `app/src/native/*` by `desktop/build.ts` and `metro.config.js`; they reach the platform's readers (the preload bridge, `JuiceBluetooth`) and apply `app/src/snapshot.ts` — never the threshold or alert rules themselves | `react-native` (Android) or the preload bridge `window.juice` (desktop), `app/src/snapshot.ts`, `app/src/updates.ts` |
 | Display helpers | `app/src/battery.ts`, `app/src/theme.ts` | Pure formatting and colours for the window | `react-native`-free TypeScript |
 | Screens | `app/src/screens/*.tsx`, `app/App.tsx` | UI | the wrappers in `app/src/native/` — never `NativeModules` |
 
-## Platform
+## Platforms
 
-macOS only. The menu bar app (`StatusItemController`) reads batteries and
-alerts; the React Native window is a second view of the same snapshot; the
-widget only displays it. There is no build for any other platform, so
-nothing here is swapped per platform and no widget action reaches back into the
-app.
+| Platform | Bundler | Reads batteries | `JuiceBattery` / `AppUpdates` | Extra |
+|---|---|---|---|---|
+| macOS | Metro (react-native-macos) | Swift: `BatteryReader` (IOBluetooth, HID reports, LE 2A19) | Swift native modules | menu bar item, WidgetKit widget, Sparkle updates |
+| Windows, Linux | esbuild (`app/desktop/build.ts`), `react-native` → react-native-web | Electron main process, Node (`app/desktop/src/battery/`): PowerShell `Get-PnpDevice` on Windows, BlueZ over D-Bus on Linux | `app/desktop/src/renderer/{juiceBattery,appUpdates}.ts` call the preload bridge | tray menu, close-to-tray window, electron-updater |
+| Android | Metro, `resolveRequest` in `app/metro.config.js` | Kotlin `JuiceBluetooth` (`app/android/`), wrapped by `app/src/native/androidBluetooth.ts` | `app/mobile/src/{juiceBattery,appUpdates}.ts` | home-screen widget (`mobile/src/widget.tsx`, swapped in for `backgroundTasks`), notifications through `JuiceBluetooth.notify` |
+
+The three JS wrappers (`juiceBattery`, `appUpdates`, `backgroundTasks`) are the
+only files swapped per platform, by the bundler, never by `Platform.OS` or file
+suffixes. macOS holds the Swift engine described above; on the other platforms
+the same JS API (`loadSnapshot`, `refreshBatteries`, `setThreshold`,
+`permissions`, `openInputMonitoringSettings`; `updateInfo`, `checkForUpdates`)
+is answered from the snapshot rules in `app/src/snapshot.ts`, so the threshold,
+the re-arm margin and the alert text are the same everywhere. What each
+non-macOS reader returns on real hardware is not measured by `verify`.
 
 ## Conventions
 
@@ -86,6 +101,26 @@ app.
   cannot render them, so the widget gallery and the README's snapshots show a
   placeholder where the bar should be. A level bar is a `Capsule` or `Circle`
   stack; `check-app-native-boundary` rejects the controls in `JuiceWidget/`.
+- **A swap keeps the wrapper's shape.** `app/desktop/build.ts` (Windows/Linux,
+  `SWAPS`) and `app/metro.config.js` (Android, `ANDROID_SWAPS`) replace
+  `app/src/native/*` modules. Each replacement exists and exports every runtime
+  name of the module it replaces (and re-exports its types with
+  `export type {…} from`), and a wrapper that reads a module macOS provides
+  (`JuiceBattery`, `AppUpdates`) is replaced on both — neither bundle is built by
+  `make verify`, so a missing export or swap fails only at launch. Keep each swap
+  entry on one line (`[/\/native\/<module>$/, <path segments>]`): the check reads
+  that shape.
+- **A module only Android provides is imported from Android code only.**
+  `JuiceBluetooth` is Kotlin (`app/android/…/com/uk/juice/bluetooth/`); its
+  wrapper `app/src/native/androidBluetooth.ts` has no swap — nothing on macOS or
+  the desktop bundle provides the module — so only `app/mobile/src/**` may
+  import it. Shared code reaches batteries through `juiceBattery`, which the
+  platforms swap.
+- **One implementation per language.** Files under `app/desktop/src/` and
+  `app/mobile/src/` must not re-declare any name exported by `app/src/snapshot.ts`
+  (threshold clamp, alert rule, kind mapping), `app/src/updates.ts` (version
+  compare, release URLs) or `app/src/battery.ts`: a second copy drifts from the
+  shared one and the shared tests stop covering it. Import it.
 - **An absent value crosses as an explicit null.** A payload sent to JavaScript
   with optional fields lists every key, sending `NSNull` for a value that is
   nil — never an omitted key. A synthesized `Codable` omits a nil key, the
@@ -121,7 +156,10 @@ app.
 `make verify`) checks every convention above except the last two — the null
 payload (pinned by its Swift test) and measured device facts (pinned by their
 captures) — on code lines only: comments that explain the boundary may name what
-it forbids. It is dormant (cause `absent`) while `app/macos/` does not exist.
+it forbids. Claims 7 and 8 (the swaps and the one-implementation rule) read
+`app/desktop/build.ts`, `app/metro.config.js` and the platform trees; a missing
+swap file or a swap list the parser cannot read is reported, never skipped. The
+whole check is dormant (cause `absent`) while `app/macos/` does not exist.
 
 ## Never Do These
 
@@ -134,4 +172,7 @@ it forbids. It is dormant (cause `absent`) while `app/macos/` does not exist.
 - Define a method in a protocol extension that the protocol does not declare
 - Encode a device battery layout that no `make battery-probe` capture backs
 - Draw `ProgressView`, `Toggle`, `Slider`, `TextField` or `Picker` in the widget
+- Replace a macOS-provided wrapper on one platform only, name a swap target that does not exist or lacks a runtime export of the wrapper
+- Import `app/src/native/androidBluetooth.ts` from anywhere but `app/mobile/src/`
+- Re-declare a function or constant `app/src/snapshot.ts`, `app/src/updates.ts` or `app/src/battery.ts` exports in `app/desktop/src/` or `app/mobile/src/`
 - Omit a key for an absent value in a payload sent to JavaScript — send `NSNull`

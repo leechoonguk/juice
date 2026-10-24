@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 4×2 cells, like the macOS widget's medium size. Besides the app's reads and the
+     Refresh button, the system updates the widget every 30 minutes (its minimum), so
+     the headless task re-reads and sends low-battery alerts after the app process is gone. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:initialLayout="@layout/rn_widget"
+    android:previewImage="@mipmap/ic_launcher"
+    android:description="@string/widget_description"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

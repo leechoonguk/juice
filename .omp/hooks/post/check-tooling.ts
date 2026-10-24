@@ -20,7 +20,9 @@ import { projectRoot, WALK_EXCLUDES } from "../lib/hook-project-root.ts";
  *      thin Objective-C bridge files (`app/macos/`). No Python, Ruby or shell
  *      script exists anywhere: each needs a second toolchain to run one check.
  *   2. Native sources (`.swift`, `.m`, `.mm`, `.h`) live under `app/macos/`,
- *      where the Xcode targets and `make swift-check` compile them.
+ *      where the Xcode targets and `make swift-check` compile them. Kotlin
+ *      (`.kt`, `.java`) lives only under `app/android/app/src/main/java/com/uk/juice/`,
+ *      where Gradle compiles it for `make android-apk`.
  *   3. `.omp/hooks/` and `.omp/extensions/` are TypeScript only — hooks and
  *      libs import each other — except `.omp/hooks/probes.json`, the pre-hook
  *      verdict table `check-omp-probes` reads.
@@ -43,6 +45,14 @@ const FORBIDDEN_SCRIPTS = /\.(py|rb|sh|bash|zsh)$/;
 const NATIVE_SOURCES = /\.(swift|m|mm|h)$/;
 const NATIVE_ROOTS = ["app/macos/"];
 
+/**
+ * The Android shell's Kotlin: the template's `MainActivity`/`MainApplication`, the widget's empty
+ * provider and the `JuiceBluetooth` native module (`com.uk.juice.bluetooth`), compiled by Gradle
+ * (`make android-apk`) from this one package directory.
+ */
+const ANDROID_SOURCES = /\.(kt|java)$/;
+const ANDROID_ROOT = "app/android/app/src/main/java/com/uk/juice/";
+
 /** Where script code may live at all. */
 const SCRIPT_ROOTS = [".omp/hooks/", ".omp/extensions/", "app/"];
 
@@ -55,8 +65,13 @@ const ADHOC_SCRIPT_DIRS: Record<string, true> = {
 
 const SCRIPT_EXTENSIONS = /\.(ts|tsx|js|jsx|mjs|cjs)$/;
 
-/** Version control and the harness's runtime state are not source. */
-const SKIPPED_PATHS: Record<string, true> = { ".git": true, ".omp/state": true };
+/** Version control, the harness's runtime state and the desktop package's build output are not source. */
+const SKIPPED_PATHS: Record<string, true> = {
+  ".git": true,
+  ".omp/state": true,
+  "app/desktop/out": true,
+  "app/desktop/release": true,
+};
 
 // ============================================================
 // Functions
@@ -97,6 +112,12 @@ export function checkToolingSync(): string[] {
     }
     if (NATIVE_SOURCES.test(path) && !NATIVE_ROOTS.some((root) => path.startsWith(root))) {
       issues.push(`${path}: native source outside app/macos/ — no Xcode target or make swift-check compiles it`);
+    }
+    if (ANDROID_SOURCES.test(path) && !path.startsWith(ANDROID_ROOT)) {
+      issues.push(
+        `${path}: Kotlin/Java outside ${ANDROID_ROOT} — the Android shell is the template's entry classes, ` +
+          "the widget's empty provider and the JuiceBluetooth module, all in the one package (tooling.md)",
+      );
     }
     if (/^\.omp\/(hooks|extensions)\//.test(path) && !path.endsWith(".ts") && path !== ".omp/hooks/probes.json") {
       issues.push(`${path}: .omp/hooks/ and .omp/extensions/ are TypeScript only — the modules import each other`);

@@ -10,6 +10,12 @@ globs:
       - app/macos/**/*.m
       - .omp/hooks/**/*.ts
       - .omp/extensions/**/*.ts
+      - app/desktop/build.ts
+      - app/desktop/src/**/*.ts
+      - app/desktop/src/**/*.tsx
+      - app/mobile/src/**/*.ts
+      - app/mobile/src/**/*.tsx
+      - app/android/app/src/main/java/**/*.kt
 alwaysApply: false
 ---
 
@@ -20,8 +26,9 @@ they are written. This rule fixes both so a reader finds the same shape in every
 file, and so review spends its attention on behaviour instead of arrangement.
 
 Applies to **all code** in the project — the React Native TypeScript and its
-package-root config, the Swift and Objective-C under `app/macos/`, and the
-harness's own hooks and extensions. Machine-checked by `check-code-layout.ts`
+package-root config, the Windows/Linux desktop package and the Android-only JS
+(`app/desktop/`, `app/mobile/src/`), the Swift and Objective-C under `app/macos/`,
+the Android shell's Kotlin, and the harness's own hooks and extensions. Machine-checked by `check-code-layout.ts`
 (`make check-code-layout`).
 
 ## Coverage
@@ -30,7 +37,9 @@ harness's own hooks and extensions. Machine-checked by `check-code-layout.ts`
 |---|---|---|---|---|
 | `app/src/**`, `app/__tests__/**`, `app/*.tsx`, `app/*.js` | yes | yes | yes | yes |
 | `.omp/hooks/**`, `.omp/extensions/**` | yes + JSDoc header | yes | yes | yes |
+| `app/desktop/src/**`, `app/desktop/build.ts`, `app/mobile/src/**`, `app/react-native.config.js` (the Windows/Linux and Android platform files) | yes | yes | yes | yes |
 | `app/macos/Shared/`, `Juice-macOS/`, `JuiceWidget/` (`.swift`, `.m`, `.h`) | yes | — (Swift's own conventions; `swift-check` reads it) | — | yes |
+| The Android shell and native module: `app/android/app/src/main/java/` (`.kt`) | yes | — (the React Native template's own layout) | — | yes |
 | `.omp/rules`, `.omp/skills`, `AGENTS.md`, `RULES.md`, `README.md`, `Makefile`, `Podfile` | — | — | — | yes |
 
 ## Comments (every language)

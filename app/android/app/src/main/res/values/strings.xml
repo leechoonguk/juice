@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Juice</string>
+    <string name="widget_description">Battery levels of your connected Bluetooth devices</string>
+</resources>

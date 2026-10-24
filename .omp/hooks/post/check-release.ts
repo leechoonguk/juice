@@ -20,7 +20,21 @@
  *      tag. A literal version ships every release as the same build, and Sparkle
  *      compares `CFBundleVersion` to decide whether an update is newer.
  *   5. Sparkle linked — the Podfile declares the `Sparkle` pod the app imports.
- *   6. Public before published — `release()` in `app-release.ts` calls
+ *   6. CI only adds — each workflow that attaches installers to a release
+ *      (`.github/workflows/desktop.yml`, `native.yml`) runs on a published
+ *      release, uploads only behind `github.event_name == 'release'`, builds
+ *      branch pushes only (the version tag `make release` pushes would build
+ *      twice), and never uploads a file named like one of the release's own
+ *      assets — a clobbered `appcast.xml` or `Juice-<v>-macos.dmg` ships a broken
+ *      update to every installed Mac. A workflow may be absent only while its
+ *      platform is (`desktop.yml` without `app/desktop/`); `native.yml` is always required.
+ *   7. Every platform's feed — Windows and Linux update from the GitHub
+ *      release named by `publish` in `app/desktop/package.json`, and only when
+ *      `desktop.yml` uploads the `latest.yml` / `latest-linux.yml` electron-updater
+ *      reads; Android reads `RELEASE_REPO` in `app/src/updates.ts`. Each names
+ *      the repository `app-release.ts` publishes to, or that platform's copies
+ *      look somewhere no release ever arrives. A file not written yet is not judged.
+ *   8. Public before published — `release()` in `app-release.ts` calls
  *      `requirePublicRepository()` before it tags or builds. Installed copies
  *      download the feed and archive without logging in, so a release from a
  *      private repository is a 404 for every one of them.
@@ -40,7 +54,7 @@ import { MUTATING_TOOLS } from "../lib/hook-mutating-tools.ts";
 import { touchesPath } from "../lib/hook-scope.ts";
 import { dormant, passLine } from "../lib/hook-dormancy.ts";
 import { projectRoot } from "../lib/hook-project-root.ts";
-import { FEED_URL } from "../lib/app-release.ts";
+import { FEED_URL, RELEASE_REPO, releaseAssets } from "../lib/app-release.ts";
 import { plistArray, plistString, plistTrue } from "../lib/app-xcode-project.ts";
 
 declare const process: { argv: string[]; exit(code?: number): never };
@@ -62,6 +76,25 @@ const VERSION_KEYS: Array<[string, string]> = [
   ["CFBundleVersion", "$(CURRENT_PROJECT_VERSION)"],
 ];
 
+/** The workflows `release.md` names as attaching installers, and when each one must exist (null: always). */
+const WORKFLOWS: Array<{ name: string; requiredWhen: string | null; reason: string }> = [
+  {
+    name: "desktop.yml",
+    requiredWhen: "app/desktop/package.json",
+    reason: "app/desktop exists, so nothing builds its installers or attaches them and the latest.yml feeds to a release",
+  },
+  {
+    name: "native.yml",
+    requiredWhen: null,
+    reason: "it attaches the Android APK to a release and runs the macOS gate",
+  },
+];
+const WORKFLOW_DIR = ".github/workflows";
+const DESKTOP_PACKAGE = "app/desktop/package.json";
+const SHARED_UPDATES = "app/src/updates.ts";
+/** The feeds electron-updater reads, per platform; `desktop.yml` must upload both. */
+const DESKTOP_FEEDS = ["latest.yml", "latest-linux.yml"];
+
 // ============================================================
 // Functions
 // ============================================================
@@ -69,7 +102,7 @@ const VERSION_KEYS: Array<[string, string]> = [
 export default function checkRelease(pi: ExtensionAPI): void {
   pi.on("tool_result", (event: { toolName?: string; input?: Record<string, unknown>; content?: Array<{ type: string; text?: string }> }) => guarded("check-release", event, () => {
     if (event.toolName && !MUTATING_TOOLS.has(event.toolName)) return;
-    if (!touchesPath(event, ["app/macos/", ".omp/hooks/lib/app-release.ts", ".github/workflows/"])) return;
+    if (!touchesPath(event, ["app/macos/", ".omp/hooks/lib/app-release.ts", ".github/workflows/", "app/desktop/package.json", "app/src/updates.ts"])) return;
 
     const issues = checkReleaseSync();
     if (issues.length === 0) {
@@ -146,11 +179,13 @@ export function checkReleaseSync(): string[] {
     issues.push(`${PODFILE}: declares no 'Sparkle' pod, yet ${APP_PLIST} configures Sparkle — the app would not link`);
   }
 
+  issues.push(...checkWorkflows());
+  issues.push(...checkPlatformFeeds());
   issues.push(...checkPublicPreflight());
   return issues;
 }
 
-/** Claim 6: `make release` refuses a private repository before anything is tagged. */
+/** Claim 8: `make release` refuses a private repository before anything is tagged. */
 function checkPublicPreflight(): string[] {
   const source = read(RELEASE_BUILDER);
   const body = /export function release\([^)]*\): void \{([\s\S]*?)\n\}\n/.exec(source)?.[1] ?? "";
@@ -161,6 +196,106 @@ function checkPublicPreflight(): string[] {
     `${RELEASE_BUILDER}: release() does not call requirePublicRepository() before it tags — a release from a private ` +
       "repository is a 404 for every installed copy (they download without logging in)",
   ];
+}
+
+/** Claim 7: the Windows, Linux and Android update paths name the repository releases go to. */
+function checkPlatformFeeds(): string[] {
+  const issues: string[] = [];
+  if (existsSync(join(projectRoot, DESKTOP_PACKAGE))) {
+    const publish = desktopPublish(JSON.parse(read(DESKTOP_PACKAGE)));
+    if (publish === null || publish.provider !== "github" || `${publish.owner}/${publish.repo}` !== RELEASE_REPO) {
+      const named = publish === null ? "unset" : `${publish.provider} ${publish.owner}/${publish.repo}`;
+      issues.push(
+        `${DESKTOP_PACKAGE}: build.publish is ${named}, not github ${RELEASE_REPO} — ` +
+          "the packaged app's app-update.yml would point Windows and Linux copies away from the releases",
+      );
+    }
+    const workflow = `${WORKFLOW_DIR}/desktop.yml`;
+    if (existsSync(join(projectRoot, workflow))) {
+      const assets = [...read(workflow).matchAll(/^\s+assets:\s*(.+)$/gm)].flatMap((m) => m[1].split(/\s+/));
+      for (const feed of DESKTOP_FEEDS.filter((name) => !assets.some((token) => token.split("/").pop() === name))) {
+        issues.push(`${workflow}: uploads no ${feed} — installed copies on that OS exist but never see a release`);
+      }
+    }
+  }
+  if (existsSync(join(projectRoot, SHARED_UPDATES))) {
+    const repo = /export const RELEASE_REPO = '([^']+)'/.exec(read(SHARED_UPDATES))?.[1];
+    if (repo !== RELEASE_REPO) {
+      issues.push(
+        `${SHARED_UPDATES}: RELEASE_REPO is ${repo === undefined ? "unreadable" : `'${repo}'`}, not ${RELEASE_REPO} — ` +
+          "Android would check a repository releases are never published to",
+      );
+    }
+  }
+  return issues;
+}
+
+/** `build.publish` of the desktop package.json, when it is one provider object. */
+function desktopPublish(manifest: unknown): { provider: unknown; owner: unknown; repo: unknown } | null {
+  if (typeof manifest !== "object" || manifest === null || !("build" in manifest)) return null;
+  const build = manifest.build;
+  if (typeof build !== "object" || build === null || !("publish" in build)) return null;
+  const publish = build.publish;
+  if (typeof publish !== "object" || publish === null) return null;
+  return {
+    provider: "provider" in publish ? publish.provider : undefined,
+    owner: "owner" in publish ? publish.owner : undefined,
+    repo: "repo" in publish ? publish.repo : undefined,
+  };
+}
+
+/**
+ * Claim 6: the installer workflows run on a published release and add only their own files.
+ * A workflow may be absent only while its platform is: `desktop.yml` is required once
+ * `app/desktop/package.json` exists; `native.yml` always, because it carries the macOS gate
+ * and this check only runs where the macOS app does.
+ */
+function checkWorkflows(): string[] {
+  const issues: string[] = [];
+  for (const { name, requiredWhen, reason } of WORKFLOWS) {
+    const path = `${WORKFLOW_DIR}/${name}`;
+    if (!existsSync(join(projectRoot, path))) {
+      if (requiredWhen === null || existsSync(join(projectRoot, requiredWhen))) {
+        issues.push(`${path}: missing — ${reason}`);
+      }
+      continue;
+    }
+    const text = read(path);
+    if (!/\n {2}release:\s*\n {4}types:\s*\[\s*published\s*\]/.test(text)) {
+      issues.push(`${path}: does not run on release: types: [published] — make release publishes and nothing attaches the installers`);
+    }
+    if (/\n {2}push:/.test(text) && !/\n {2}push:\s*\n(?: {4}#.*\n)* {4}branches:/.test(text)) {
+      issues.push(`${path}: its push trigger is not limited to branches — the version tag make release pushes builds a second time`);
+    }
+    const steps = text.split(/\n(?= +- (?:name|uses):)/);
+    const uploads = steps.filter((step) => /gh release upload\b/.test(step));
+    if (uploads.length === 0) {
+      issues.push(`${path}: runs no gh release upload — the release would carry no installer from this workflow`);
+    }
+    // Uploaded names come from the command and from the matrix's `assets:` entries it expands.
+    const uploaded = [
+      ...uploads.flatMap((step) => [.../gh release upload\s+\S+\s+(.*?)\s+--/.exec(step)?.[1].split(/\s+/) ?? []]),
+      ...[...text.matchAll(/^\s+assets:\s*(.+)$/gm)].flatMap((m) => m[1].split(/\s+/)),
+    ].filter((token) => !token.startsWith("${{"));
+    for (const step of uploads) {
+      if (!/if:\s*github\.event_name\s*==\s*'release'/.test(step)) {
+        issues.push(`${path}: a gh release upload step is not guarded by if: github.event_name == 'release' — a branch build would try to upload`);
+      }
+    }
+    // A token may be a glob over the name (`Juice-*-macos.dmg`) or the name of another version
+    // (`Juice-1.0.0-macos.dmg`): either one lands on a file `make release` attached.
+    const escape = (text: string): string => text.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+    for (const token of uploaded) {
+      const file = token.split("/").pop() ?? token;
+      const glob = new RegExp(`^${escape(file).replace(/\*/g, ".*")}$`);
+      for (const asset of releaseAssets("0.0.0")) {
+        const anyVersion = new RegExp(`^${escape(asset).replace(/0\\\.0\\\.0/g, "\\d+\\.\\d+\\.\\d+")}$`);
+        if (!glob.test(asset) && !anyVersion.test(file)) continue;
+        issues.push(`${path}: uploads ${token}, which matches the release's own ${asset} — --clobber would replace what every installed Mac updates from`);
+      }
+    }
+  }
+  return issues;
 }
 
 function read(path: string): string {

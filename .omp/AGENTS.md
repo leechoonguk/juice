@@ -8,8 +8,12 @@ shows a battery icon in the menu bar (filled to the lowest level, red when one i
 WidgetKit widget (small, medium, large) and sends a notification when a device
 falls to a threshold (default 20%), re-arming once it has charged 5 points
 above it. Some keyboards report their battery only as a HID report, which
-needs Input Monitoring. macOS only; updates come from GitHub Releases of
-`leechoonguk/juice` through Sparkle (rule://release).
+needs Input Monitoring. The same window runs on Windows and Linux (Electron:
+PowerShell `Get-PnpDevice` / BlueZ over D-Bus, tray, notifications) and Android
+(the Kotlin `JuiceBluetooth` module, home-screen widget); the platform
+table is in rule://app-native-boundary. Updates come from GitHub Releases of
+`leechoonguk/juice`: Sparkle on macOS, electron-updater on Windows and Linux,
+the release's APK on Android (rule://release).
 
 | Part | Technology |
 |---|---|
@@ -18,6 +22,8 @@ needs Input Monitoring. macOS only; updates come from GitHub Releases of
 | Menu bar | `StatusItemController` (AppKit), part of the engine |
 | Widget | WidgetKit extension, sandboxed; only displays the published snapshot |
 | Updates | Sparkle (menu bar item and window button) |
+| Windows/Linux | Electron (`app/desktop/`): the main process reads batteries (PowerShell `Get-PnpDevice` on Windows, BlueZ over D-Bus on Linux), tray, notifications, electron-updater; esbuild bundles the same window through react-native-web |
+| Android | Kotlin `JuiceBluetooth` module + home-screen widget (react-native-android-widget) under `app/android/`, `app/mobile/src/` |
 
 The layers between those parts are rule://app-native-boundary. `README.md` at
 the project root is the front page; its widget pictures in `docs/` are made from
@@ -36,12 +42,18 @@ README.md                     the front page, kept true to the code (rule://root
 docs/                         the README's pictures: widgets-light.png, widgets-dark.png (`make widget-snapshots`)
 app/                          React Native + react-native-macos, TypeScript, npm
   App.tsx, index.js           entry points
-  metro.config.js             Metro defaults
-  src/native/*.ts             typed wrappers over NativeModules (juiceBattery, appUpdates)
+  metro.config.js             Metro defaults + the Android swaps of the native wrappers
+  src/native/*.ts             typed wrappers over NativeModules (juiceBattery, appUpdates; backgroundTasks no-op; androidBluetooth, Android only)
+  src/snapshot.ts             the shared, React-free snapshot rules: threshold, alerts, kinds
+  src/updates.ts              release repository, version compare, APK URL
   src/battery.ts              pure display helpers for levels
   src/theme.ts                the window's palette
   src/screens/BatteryScreen.tsx   the window
   __tests__/                  jest tests (battery helpers, the screen)
+  desktop/                    Windows/Linux Electron app: own package.json, build.ts (esbuild), src/ main + battery readers + preload + renderer swaps (rule://app-native-boundary)
+  mobile/src/                 Android-only JS: juiceBattery, appUpdates, widget (swapped in by metro.config.js)
+  android/                    Gradle project, Kotlin shell + the JuiceBluetooth native module (rule://tooling)
+  react-native.config.js      keeps Android-only libraries out of macOS autolinking
   macos/
     Podfile
     Juice.xcodeproj                    targets, signing, App Group (rule://app-macos-project)
@@ -52,7 +64,8 @@ app/                          React Native + react-native-macos, TypeScript, npm
     JuiceWidget/*.swift, Info.plist, *.entitlements   WidgetKit extension
     CoreTests/                         SwiftPM: JuiceCore tests, juice-probe, juice-icon, juice-widget-snapshots
 .omp/                         rules/ hooks/ extensions/ skills/ (this harness)
-.github/workflows/native.yml  CI: the macOS gate (rule://release)
+.github/workflows/native.yml  CI: the Android APK and the macOS gate (rule://release)
+.github/workflows/desktop.yml CI: the Windows and Linux installers (rule://release)
 ```
 
 The boundary between those layers — what may import React, where the device
@@ -73,6 +86,8 @@ project directory.
 | App icon | `make app-icon` (rendered from `CoreTests/Icon`) |
 | The README's pictures | `make widget-snapshots` (macOS) |
 | Release (only when asked) | `make release bump=patch\|minor\|major` (`DRY_RUN=1` first); `make app-install` puts the published build in /Applications |
+| Windows/Linux desktop app (not in `verify`) | `make desktop-install`, `make desktop-start`, `make desktop-typecheck`, `make desktop-dist v=x.y.z` |
+| Android APK (not in `verify`) | `make android-apk v=x.y.z` (Android SDK + JDK 17) |
 | One harness check | `make check-<name>` (listed by `make help`) |
 | The whole gate | `make verify` — runs once, at commit, through `make commit` |
 | Publish (only when asked) | `make commit m="type(scope): subject"`, `make push` |

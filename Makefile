@@ -1,10 +1,12 @@
 .PHONY: help install pods start run build app-logs typecheck lint test swift-check swift-test battery-probe app-icon widget-snapshots demo verify clean commit push \
 	dist release unrelease app-install doctor hook-report \
+	desktop-install desktop-build desktop-start desktop-typecheck desktop-dist android-apk \
 	check-app-duplicate-blocks check-app-macos-project check-app-native-boundary check-code-layout check-makefiles \
 	check-omp-hooks check-omp-probes check-omp-rules check-omp-skills check-omp-types check-readme check-release check-tooling check-verify
 
 APP := app
 MACOS := $(APP)/macos
+DESKTOP := $(APP)/desktop
 SCHEME := Juice-macOS
 WORKSPACE := $(MACOS)/Juice.xcworkspace
 # Every macOS build — Debug here, Release in app-release.ts, Xcode's own through
@@ -99,6 +101,28 @@ widget-snapshots: ## Render docs/widgets-light.png and docs/widgets-dark.png fro
 
 demo: ## Record docs/demo.gif — the widget's own views over a scripted desk of made-up devices (requires macOS and ffmpeg)
 	swift run --package-path $(MACOS)/CoreTests juice-widget-snapshots --demo docs/demo.gif
+
+# Windows and Linux (rule://root-makefile). Electron and electron-builder run on
+# any OS, but an installer is built for the OS it runs on — CI builds both.
+desktop-install: ## Install the Windows/Linux desktop app's dependencies (npm ci in app/desktop)
+	cd $(DESKTOP) && npm ci
+
+desktop-build: ## Bundle the Windows/Linux desktop app (main, preload, window) into app/desktop/out
+	node app/desktop/build.ts
+
+desktop-start: desktop-build ## Run the desktop app from its bundle (Windows/Linux; on macOS use `make run`)
+	cd $(DESKTOP) && npx electron .
+
+desktop-typecheck: ## Type-check the desktop app against DOM and Node types
+	cd $(DESKTOP) && npx tsc --noEmit -p tsconfig.json
+
+desktop-dist: desktop-build ## Package this OS's installers into app/desktop/release (usage: make desktop-dist v=x.y.z)
+	cd $(DESKTOP) && npx electron-builder --publish never $(if $(v),-c.extraMetadata.version=$(v))
+
+# Android (rule://root-makefile): the same screens on React Native; Bluetooth
+# through the Kotlin module JuiceBluetooth (app/android). `make start` serves it.
+android-apk: ## Build the Android APK, release-built and signed with the template's debug key (requires the Android SDK and JDK 17; v=x.y.z sets the version)
+	cd $(APP)/android && ./gradlew assembleRelease $(if $(v),-PjuiceVersionName=$(v))
 
 verify: lint typecheck test swift-check swift-test check-app-duplicate-blocks check-app-macos-project check-app-native-boundary check-code-layout check-makefiles check-omp-hooks check-omp-probes check-omp-rules check-omp-skills check-omp-types check-readme check-release check-tooling ## Run every gate that runs without Xcode
 

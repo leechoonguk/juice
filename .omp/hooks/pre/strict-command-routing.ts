@@ -35,6 +35,9 @@ const FULL_GATE = /\bmake\b[^|;&]*\b(?:verify|test)\b(?!-fast)/;
 /** The filters that drop a gate's lines and its exit code with them. */
 const GATE_TRUNCATION = /\|\s*(?:tail|head|grep|sed|awk|wc)\b/;
 
+/** A `docker run`/`docker exec` invocation at a command boundary, `sudo` and `compose` allowed. */
+const DOCKER_RUN = /(?:^|[&|;()]\s*)(?:sudo\s+)?docker\s+(?:compose\s+)?(?:run|exec)\b/;
+
 export default function strictCommandRouting(pi: ExtensionAPI): void {
   // ctx-ok: the session cwd tells where the command runs (eventWithCwd reads it inside a try); it is never a root.
   pi.on("tool_call", recordedBlocks("strict-command-routing", (event: { toolName?: string; input?: Record<string, unknown> }, ctx: unknown) => {
@@ -53,7 +56,7 @@ export default function strictCommandRouting(pi: ExtensionAPI): void {
     if (tool === "eval") {
       const runner = /\b(subprocess\.(?:run|call|check_output|Popen)|execSync|spawnSync|os\.system)\b/;
       const routed = /\b(npm|npx|jest|tsc|eslint|swiftc|xcodebuild|pod)\b/;
-      if (runner.test(cmd) && routed.test(cmd)) {
+      if (runner.test(cmd) && routed.test(cmd) && !/\bdocker\s+(?:run|exec)\b/.test(cmd)) {
         return {
           block: true,
           reason:
@@ -85,8 +88,9 @@ export default function strictCommandRouting(pi: ExtensionAPI): void {
     if (cmd.startsWith("make ")) return;
 
     // --- Denylist (patterns anchored to a command boundary) ---
+    const outsideDocker = withoutDockerRuns(cmd);
     for (const rule of denylist) {
-      if (rule.pattern.test(cmd)) {
+      if (rule.pattern.test(outsideDocker)) {
         return {
           block: true,
           reason: `\`${rule.desc}\` — 직접 실행 금지\n\nmake 타겟을 사용하세요:\n  → \`${rule.target}\``,
@@ -106,6 +110,36 @@ function truncatesGate(cmd: string): boolean {
   if (gate === null) return false;
   const segment = cmd.slice(gate.index).split(/;|\|\||&&|\n/)[0];
   return GATE_TRUNCATION.test(segment) && !/(?:^|\s)\d?>>?\s*[^\s&>]/.test(segment.split(/\|/)[0]);
+}
+
+/**
+ * The command with every `docker run` / `docker exec` invocation cut out, up to the next
+ * unquoted `&&`, `||`, `;`, `|` or newline. Docker builds are the sanctioned local
+ * cross-build path for the Linux and Android installers: what runs inside the container
+ * (`npm ci`, `node build.ts`, `./gradlew`) is the container's recipe, not this checkout's
+ * make target. Whatever the shell runs outside the container stays routed.
+ */
+function withoutDockerRuns(cmd: string): string {
+  let rest = cmd;
+  let kept = "";
+  for (;;) {
+    const start = DOCKER_RUN.exec(rest);
+    if (start === null) return kept + rest;
+    kept += rest.slice(0, start.index);
+    let quote = "";
+    let end = start.index + start[0].length;
+    for (; end < rest.length; end++) {
+      const char = rest[end];
+      if (quote !== "") {
+        if (char === quote) quote = "";
+      } else if (char === "'" || char === '"') {
+        quote = char;
+      } else if (char === ";" || char === "|" || char === "\n" || (char === "&" && rest[end + 1] === "&")) {
+        break;
+      }
+    }
+    rest = rest.slice(end);
+  }
 }
 
 /**
@@ -144,7 +178,7 @@ const denylist: Array<{
   {
     desc: "npm ci/install 직접 실행",
     pattern: new RegExp(`${atCmdStart("npm")}\\s+(?:ci|install|i)(?:\\s*$|\\s*[&|;)])`),
-    target: "make install",
+    target: "make install (app/) / make desktop-install (app/desktop/)",
   },
   {
     desc: "React Native CLI 직접 실행",
@@ -165,6 +199,29 @@ const denylist: Array<{
     desc: "xcodebuild 직접 실행",
     pattern: new RegExp(`${atCmdStart("xcodebuild")}(?:\\s|$)`),
     target: "make build",
+  },
+  {
+    // The bundle's resolution (react-native-web, the platform swaps) lives in build.ts; a
+    // hand-run esbuild or electron-builder packages something the gate never built.
+    desc: "데스크톱 번들러 직접 실행",
+    pattern: new RegExp(`${atCmdStart("node")}\\s+\\S*desktop/build\\.ts\\b`),
+    target: "make desktop-build",
+  },
+  {
+    desc: "electron-builder 직접 실행",
+    pattern: new RegExp(`${atCmdStart("(?:npx\\s+)?electron-builder")}(?:\\s|$)`),
+    target: "make desktop-dist",
+  },
+  {
+    desc: "Electron 직접 실행",
+    pattern: new RegExp(`${atCmdStart("(?:npx\\s+)?electron")}\\s+\\.(?:\\s|$)`),
+    target: "make desktop-start",
+  },
+  {
+    // The version comes from the tag through -PjuiceVersionName; a bare gradlew build ships 0.0.0.
+    desc: "Gradle 직접 실행",
+    pattern: new RegExp(`${atCmdStart("gradlew")}(?:\\s|$)`),
+    target: "make android-apk",
   },
   {
     desc: "Script 직접 실행",

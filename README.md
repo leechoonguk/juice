@@ -37,7 +37,7 @@ drains past the threshold, then headphones connect. `make demo` records it.</sub
 - **Updates itself** from this repository's releases through Sparkle, and asks
   before installing.
 
-Requires macOS 14 or newer.
+The Mac app requires macOS 14 or newer; Windows, Linux and Android builds follow below.
 
 ## Install
 
@@ -45,6 +45,40 @@ Download `Juice-<version>-macos.dmg` from the
 [latest release](https://github.com/leechoonguk/juice/releases/latest), open it
 and drag Juice to Applications. Juice lives in the menu bar; open its window
 from the menu to set the threshold.
+
+## Windows, Linux and Android
+
+The same window, threshold and notifications on the other platforms. Each
+release carries their installers beside the Mac disk image — CI attaches them
+when the release is published.
+
+| Platform | Install | Where the batteries come from |
+|---|---|---|
+| Windows | `Juice-<version>-windows-setup.exe` | the Windows Bluetooth stack: PowerShell's `Get-PnpDevice` lists the present Bluetooth devices and `Get-PnpDeviceProperty` reads each one's battery property (`DEVPKEY_Bluetooth_Battery`) |
+| Linux | `Juice-<version>-linux-x86_64.AppImage` or `Juice-<version>-linux-amd64.deb` | BlueZ over the system D-Bus: every connected `org.bluez.Device1` with its `org.bluez.Battery1` percentage |
+| Android 7 or newer | `Juice-<version>-android.apk` (sideload) | the paired devices' battery level through the Bluetooth stack (the `JuiceBluetooth` module), refreshed while the app runs and when the widget updates |
+
+Windows and Linux put Juice in the tray: its menu lists each device with its
+level, closing the window hides it there, and the app reads on launch, every
+15 minutes and when the menu is opened or refreshed. Android adds a home-screen
+widget that lists the devices lowest first and a low-battery notification.
+Windows and Linux check for updates themselves (electron-updater); Android
+opens the new release's APK when you ask it to check. The APK is signed with the
+React Native template's public debug key, so it installs by hand but is not a
+store build.
+
+What a device reports is up to the platform and the device, and none of the
+three readers has been measured against real hardware by this project:
+
+- **Windows** lists only what exposes `DEVPKEY_Bluetooth_Battery`; a device that
+  reports no level there appears without one.
+- **Linux** needs `bluetoothd` and a BlueZ that publishes `Battery1` for the
+  device; with no bus or no daemon the list is empty, with a note saying so.
+- **Android** reads the level through hidden system API by reflection, so a
+  device or Android version that withholds it shows no level; the app asks for
+  the nearby-devices (Bluetooth connect) and notification permissions.
+- The widget and a background refresh are subject to each vendor's battery
+  optimisation.
 
 ## Build From Source
 
@@ -59,7 +93,14 @@ every target. You need Node 22.18 or newer, Xcode and CocoaPods.
 | Read your devices' batteries from the terminal | `make battery-probe` |
 | Check while working | `make lint`, `make typecheck`, `make test`, `make swift-check`, `make swift-test` |
 | Re-render the widget pictures and the demo above | `make widget-snapshots`, `make demo` (needs ffmpeg) |
+| Windows or Linux desktop app | `make desktop-install`, then `make desktop-start` (`make desktop-dist v=x.y.z` packages this OS's installers) |
+| Android APK | `make android-apk v=x.y.z` (needs the Android SDK and JDK 17) |
 | The whole gate | `make verify` |
+
+The Windows, Linux and Android builds run the same window (`app/App.tsx`) and
+the same threshold and alert rules (`app/src/snapshot.ts`). They differ in
+where a platform's batteries come from: the bundler swaps the two native
+wrappers (`juiceBattery`, `appUpdates`) for that platform's own.
 
 ## How It Fits Together
 
@@ -83,4 +124,6 @@ only displays the snapshot the app last published.
 | `app/macos/Shared/` | the snapshot types the app and the widget share |
 | `app/macos/JuiceWidget/` | the WidgetKit extension |
 | `app/macos/CoreTests/` | Swift tests and the `juice-probe`, `juice-icon` and `juice-widget-snapshots` tools |
+| `app/desktop/` | the Windows and Linux app: Electron main process (reads the batteries in `src/battery/`, tray, notifications, updates), preload bridge, esbuild bundle of the same window |
+| `app/mobile/src/`, `app/android/` | the Android app: the window's native replacements, the home-screen widget, and the Kotlin `JuiceBluetooth` module that reads bonded devices |
 | `.omp/` | the project's agent harness: rules, hooks and the `make verify` gate |

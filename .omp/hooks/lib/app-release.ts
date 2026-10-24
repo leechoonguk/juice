@@ -13,6 +13,11 @@
  * `release` refuses, before it builds or tags anything, when the repository is
  * not public: a release from a private repository is a 404 for every installed copy.
  *
+ * This script publishes the macOS assets only (`releaseAssets`). Once the release is
+ * published, CI attaches the other platforms' installers to it (`desktop.yml`,
+ * `native.yml`; rule://release): it only adds files, and never uploads the disk image,
+ * the appcast or the checksums, which are built and signed here and nowhere else.
+ *
  *   node app-release.ts dist <x.y.z>               build + package + sign into app/macos/build/dist
  *   node app-release.ts release <patch|minor|major> [--dry-run]
  *   node app-release.ts unrelease <vX.Y.Z>

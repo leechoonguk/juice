@@ -85,15 +85,22 @@ const TS_FIELD = /^\s{2,}(?:public\s+|private\s+|protected\s+|static\s+|readonly
 /** Every executable source extension of the JS side. */
 const SCRIPT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
 
-/** Native source extensions: Swift and the Objective-C bridge files. */
-const NATIVE_EXTENSIONS = [".swift", ".m", ".h"];
+/** Native source extensions: Swift, the Objective-C bridge files and the Android shell's Kotlin. */
+const NATIVE_EXTENSIONS = [".swift", ".m", ".h", ".kt"];
 
-/** Native source roots: the shared snapshot, the macOS app target (engine + adapters) and the widget. */
+/**
+ * Native source roots: the shared snapshot, the macOS app target (engine + adapters),
+ * the widget and the Android app's Kotlin (the shell and the JuiceBluetooth module).
+ */
 const NATIVE_ROOTS = [
   "app/macos/Shared",
   "app/macos/Juice-macOS",
   "app/macos/JuiceWidget",
+  "app/android/app/src/main/java",
 ];
+
+/** The JS platform trees: the Windows/Linux app and the Android-only modules. */
+const PLATFORM_ROOTS = ["app/desktop/src", "app/mobile/src"];
 
 interface ClassBlock {
   name: string;
@@ -142,13 +149,17 @@ export function checkCodeLayoutSync(): string[] {
     join(projectRoot, ".omp", "extensions"),
     join(projectRoot, "app", "src"),
     join(projectRoot, "app", "__tests__"),
+    ...PLATFORM_ROOTS.map((root) => join(projectRoot, root)),
   ];
   // Package-root files are code too: the entry points and the tool config
-  // (babel, metro, jest, eslint, prettier). They are not walked recursively —
-  // node_modules and macos/ are not script trees.
+  // (babel, metro, react-native, jest, eslint, prettier). They are not walked
+  // recursively — node_modules and macos/ are not script trees. The desktop
+  // package's root holds its bundler script; its `out/` and `release/` hold
+  // bundles and installers, which a non-recursive walk never enters.
   const scriptPaths = [
     ...scriptRoots.flatMap((root) => walk(root, SCRIPT_EXTENSIONS)),
     ...walk(join(projectRoot, "app"), SCRIPT_EXTENSIONS, false),
+    ...walk(join(projectRoot, "app", "desktop"), SCRIPT_EXTENSIONS, false),
   ];
   for (const path of scriptPaths) {
     const source = readFileSync(path, "utf-8");
@@ -179,6 +190,7 @@ function hygieneFiles(): string[] {
   const roots = [
     join(projectRoot, "app", "src"),
     join(projectRoot, "app", "__tests__"),
+    ...PLATFORM_ROOTS.map((root) => join(projectRoot, root)),
     ...NATIVE_ROOTS.map((root) => join(projectRoot, root)),
     join(projectRoot, ".omp", "rules"),
     join(projectRoot, ".omp", "hooks"),
@@ -191,6 +203,8 @@ function hygieneFiles(): string[] {
     join(projectRoot, "app", "App.tsx"),
     join(projectRoot, "app", "index.js"),
     join(projectRoot, "app", "metro.config.js"),
+    join(projectRoot, "app", "react-native.config.js"),
+    join(projectRoot, "app", "desktop", "build.ts"),
     join(projectRoot, "app", "macos", "Podfile"),
     join(projectRoot, ".omp", "AGENTS.md"),
     join(projectRoot, ".omp", "RULES.md"),
