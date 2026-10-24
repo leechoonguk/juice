@@ -221,7 +221,10 @@ export function install(): void {
     spawnSync("pkill", ["-x", "Juice"], { stdio: "ignore" });
     for (const copy of buildCopies()) {
       spawnSync("pluginkit", ["-r", `${copy}/Contents/PlugIns/JuiceWidget.appex`], { stdio: "ignore" });
-      spawnSync(LSREGISTER, ["-u", copy], { stdio: "ignore" });
+      // The copy's embedded Sparkle updater is registered beside it, and outlives it otherwise.
+      for (const bundle of [copy, `${copy}/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app`]) {
+        spawnSync(LSREGISTER, ["-u", bundle], { stdio: "ignore" });
+      }
       say(`unregistered ${copy}`);
     }
     rmSync(INSTALLED_APP, { recursive: true, force: true });
@@ -282,11 +285,15 @@ function signingIdentity(): string {
   return identity;
 }
 
-/** Juice bundles Spotlight finds in a build directory (Xcode's DerivedData or this project's build/). */
+/**
+ * Every Juice.app Launch Services knows besides the installed one — what Launchpad,
+ * `open -b` and the widget gallery choose from. Read from its own registry, not
+ * Spotlight: the build directory is `.noindex`, so Spotlight never sees a build copy.
+ */
 function buildCopies(): string[] {
-  return output("mdfind", ["kMDItemCFBundleIdentifier == 'com.uk.juice'"])
-    .split("\n")
-    .filter((path) => path.endsWith(".app") && (path.includes("/DerivedData/") || path.startsWith(join(root, "app/macos/build"))));
+  const dump = output(LSREGISTER, ["-dump"]);
+  const paths = [...dump.matchAll(/^path:\s+(.+?\/Juice\.app)\s+\(0x[0-9a-f]+\)$/gm)].map((match) => match[1]);
+  return [...new Set(paths)].filter((path) => path !== INSTALLED_APP);
 }
 
 /** The single-item Sparkle feed for `version`. */
@@ -348,9 +355,14 @@ function run(command: string, args: string[]): void {
   if (result.status !== 0) fail(`${command} ${args.slice(0, 3).join(" ")} … exited ${result.status ?? result.signal}`);
 }
 
-/** Runs a command and returns its stdout; a nonzero exit ends the release. */
+/**
+ * Runs a command and returns its stdout; a nonzero exit ends the release. The
+ * buffer holds the Launch Services dump (several MB), past Node's 1 MB default.
+ */
 function output(command: string, args: string[]): string {
-  const result = spawnSync(command, args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
+  const result = spawnSync(command, args, {
+    cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], maxBuffer: 256 * 1024 * 1024,
+  });
   if (result.status !== 0) fail(`${command} ${args.slice(0, 3).join(" ")} … exited ${result.status ?? result.signal}`);
   return String(result.stdout);
 }
