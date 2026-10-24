@@ -33,6 +33,11 @@
  *      conformer's own implementation is never called through the protocol,
  *      and nothing fails — measured here as a delegate callback that dropped
  *      every value it was given.
+ *   7. The widget draws no AppKit-backed control — `ProgressView`, `Toggle`,
+ *      `Slider`, `TextField`, `Picker`. WidgetKit and `ImageRenderer` cannot
+ *      render them: the widget gallery and the README's snapshots show a
+ *      placeholder where the control should be (measured here with a
+ *      `ProgressView`); shapes (`Capsule`, `Circle`) draw everywhere.
  *
  * Dormant (cause `absent`) while `app/macos/` does not exist.
  */
@@ -47,13 +52,12 @@ import { printRuleHint } from "../lib/hook-rule-hint.ts";
 import { MUTATING_TOOLS } from "../lib/hook-mutating-tools.ts";
 import { touchesPath } from "../lib/hook-scope.ts";
 import { dormant, passLine } from "../lib/hook-dormancy.ts";
-import { resolveProjectRoot, WALK_EXCLUDES } from "../lib/hook-project-root.ts";
+import { projectRoot, WALK_EXCLUDES } from "../lib/hook-project-root.ts";
 
 // ============================================================
 // Constants
 // ============================================================
 
-const projectRoot = resolveProjectRoot();
 
 const MACOS_DIR = "app/macos";
 const NATIVE_DIR = "app/macos/Juice-macOS/Native";
@@ -81,6 +85,10 @@ const DEVICE_IMPORT = /^\s*import\s+(?:class\s+|struct\s+)?(CoreBluetooth|IOBlue
 const NATIVE_MODULES = /\bNativeModules\b/;
 const SUITE_DEFAULTS = /\bUserDefaults\s*\(\s*suiteName\s*:/;
 const SWIFT_FUNC = /\bfunc\s+(\w+)\s*(?:<[^>{]*>)?\s*\(/g;
+
+/** The widget extension: what WidgetKit and `ImageRenderer` draw, so what claim 7 polices. */
+const WIDGET_DIR = "app/macos/JuiceWidget";
+const APPKIT_CONTROL = /\b(ProgressView|Toggle|Slider|TextField|Picker)\b\s*[({<]/;
 
 /** The only line shapes a bridge declaration file may hold, outside comments. */
 const BRIDGE_LINE = /^(?:#import\s+[<"][^>"]+[>"]|@interface\s+RCT_EXTERN_(?:REMAP_)?MODULE\(.*|RCT_EXTERN_(?:REMAP_)?METHOD\(.*|@end)$/;
@@ -163,6 +171,17 @@ export function checkAppNativeBoundarySync(): string[] {
         );
       });
     }
+  }
+
+  for (const path of walk(WIDGET_DIR, [".swift"])) {
+    eachCodeLine(path, (line, number) => {
+      const control = APPKIT_CONTROL.exec(line)?.[1];
+      if (control === undefined) return;
+      issues.push(
+        `${path}:${number}: draws ${control} — an AppKit-backed control that WidgetKit and ImageRenderer cannot render ` +
+          "(a placeholder in the widget gallery and the README snapshots); draw it with shapes (Capsule, Circle)",
+      );
+    });
   }
 
   issues.push(...checkProtocolExtensionMethods());

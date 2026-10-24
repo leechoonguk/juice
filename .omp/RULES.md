@@ -15,6 +15,14 @@ own entries and blocks the command. Publish with `make commit m="…"` and
 
 When modifying the harness (`.omp/` files, hooks, rules, MCP/LSP config), always reference OMP official documentation (`omp://`) first. The harness is the backbone of your development workflow — changes here affect every session. Read `omp://` docs (settings, hooks, rules, tools, SDK) to understand current behavior before touching anything. Never guess how the harness works; verify against the official guide.
 
+## Language
+
+- Reply in the user's language; repository files keep the project's file language.
+
+## Environment
+
+- No global installs (brew, npm -g, pip) without asking; record what was installed; remove it when done and nothing else (never `brew autoremove`); never run an installer or setup against the real `$HOME` — use `HOME=$(mktemp -d)`; subagent prompts carry the same cleanup duty.
+
 ## Workflow
 
 Before creating or editing files in an area, read that area's rulebook entries
@@ -42,6 +50,35 @@ the full `make verify` during work — it runs once, at commit time, through
 `make commit`/`make push`. Before declaring work done, the unit checks covering
 the last change must be green.
 
+- After a write through anything but the edit tool (redirect, script), re-read before the next anchored edit; never `sed -i` code.
+- A reference the user names (a product, an app, a repo) is read or measured before the implementation it describes.
+- A user-visible fix names which copy the user runs (installed vs build) and installs it when asked.
+
+## Measurement Before Claims
+
+A statement about what a device does, sends or supports — a report layout, a
+characteristic, a refresh behaviour, "it reports no level" — needs the probe
+output that shows it, quoted in the answer or pinned as a test fixture
+(`make battery-probe`; rule://app-native-boundary). Without one it is labelled
+*unverified*, never stated as fact. An unknown protocol is captured before a
+codec is written: a decoder built from assumptions is thrown away when the real
+bytes arrive. No real device name, address or identifier goes into the tree
+(rule://code-layout, Device Literals).
+
+## Observing the Running App
+
+Anything a decision depends on is logged at `notice` — `info` lines are not kept
+for later `log show`; stream into a file the command owns, since a background
+`log stream` dies with its shell. Never drive the GUI by screen coordinates:
+act through Accessibility element actions or ask the user. Start with `make
+doctor` when the app, the widget or a permission misbehaves (rule://app-macos-project).
+
+## Edit Flags
+
+`// intent: replace` is a flag for the edit guard, written in an edit body only.
+Never leave it in a file: `check-code-layout` fails on it. A cutover that removes
+a name everywhere in one patch needs no flag.
+
 ## Working pattern
 
 - 작업 중 검증은 바뀐 단위만 돌린다(`make test`·`make lint`·`make typecheck`·`make swift-check`·해당
@@ -52,7 +89,7 @@ the last change must be green.
 - 배선 파일(import·`RCT_EXTERN_METHOD`·`AppRegistry` 등록)에 이미 다른 항목이 있으면 **나란히 추가**한다.
   기존 줄을 교체하지 않는다.
 - 게이트 출력을 `head`/`tail`/`grep` 으로 자르지 않는다. 파이프는 파이프의 종료코드를 돌려주므로 빨간 게이트가
-  초록으로 보인다.
+  초록으로 보인다. 로그가 필요하면 `make <타깃> > 파일 2>&1; echo EXIT=$?` 로 받고 파일을 읽는다.
 
 ## Subagents
 

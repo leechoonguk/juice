@@ -4,9 +4,12 @@ The battery level of every Bluetooth device connected to your Mac — keyboard,
 mouse, trackpad, headphones, phone — in the menu bar, in a widget, and in a
 notification before one runs out.
 
-![Juice widgets, light](docs/widgets-light.png)
+<p align="center">
+  <img src="docs/demo.gif" width="760" alt="Juice's widgets as a keyboard drains past the 20% threshold — its ring turns red and a warning appears — and headphones connect">
+</p>
 
-![Juice widgets, dark](docs/widgets-dark.png)
+<sub>The widget's own views over a scripted desk of made-up devices: a keyboard
+drains past the threshold, then headphones connect. `make demo` records it.</sub>
 
 ## What It Does
 
@@ -18,6 +21,10 @@ notification before one runs out.
   beside it.
 - **A widget in three sizes.** Small, medium and large WidgetKit widgets show the
   same devices; add one from *Edit Widgets*.
+
+  ![Juice widgets, light](docs/widgets-light.png)
+
+  ![Juice widgets, dark](docs/widgets-dark.png)
 - **A notification at your threshold.** When a device falls to the threshold
   (20% by default, 5–95% in the window) Juice sends one notification for it.
   That device alerts again only after it has charged 5 points above the
@@ -51,7 +58,7 @@ every target. You need Node 22.18 or newer, Xcode and CocoaPods.
 | Build only | `make build` |
 | Read your devices' batteries from the terminal | `make battery-probe` |
 | Check while working | `make lint`, `make typecheck`, `make test`, `make swift-check`, `make swift-test` |
-| Re-render the widget pictures above | `make widget-snapshots` |
+| Re-render the widget pictures and the demo above | `make widget-snapshots`, `make demo` (needs ffmpeg) |
 | The whole gate | `make verify` |
 
 ## How It Fits Together

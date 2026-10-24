@@ -9,6 +9,10 @@
  *   2. Every `make <target>` the README writes as code is a Makefile target.
  *   3. `docs/` holds only what the README shows, and the README shows pictures
  *      only from `docs/` — a picture elsewhere has no command that regenerates it.
+ *   4. The README opens with the moving demo: `docs/demo.gif` is shown before its
+ *      first `##` section, and the Makefile's `demo` target is what writes it. A
+ *      still alone tells a visitor what the widget looks like, not what it does —
+ *      levels falling, a device turning red at the threshold, one connecting.
  *
  * Reads files only; dormant (`absent`) without `README.md`.
  */
@@ -23,16 +27,16 @@ import { printRuleHint } from "../lib/hook-rule-hint.ts";
 import { MUTATING_TOOLS } from "../lib/hook-mutating-tools.ts";
 import { touchesPath } from "../lib/hook-scope.ts";
 import { dormant, passLine } from "../lib/hook-dormancy.ts";
-import { resolveProjectRoot, WALK_EXCLUDES } from "../lib/hook-project-root.ts";
+import { projectRoot, WALK_EXCLUDES } from "../lib/hook-project-root.ts";
 
 // ============================================================
 // Constants
 // ============================================================
 
-const projectRoot = resolveProjectRoot();
 
 const README = "README.md";
 const DOCS = "docs";
+const DEMO = `${DOCS}/demo.gif`;
 const SCOPE = [README, `${DOCS}/`, "Makefile", ".github/workflows/"];
 
 const MARKDOWN_LINK = /!?\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
@@ -76,6 +80,25 @@ export function checkReadmeSync(): string[] {
   issues.push(...checkReferences(references));
   issues.push(...checkMakeTargets(readme));
   issues.push(...checkDocs(references));
+  issues.push(...checkDemo(readme));
+  return issues;
+}
+
+/** Claim 4: the front page moves, and one command makes it move. */
+function checkDemo(readme: string): string[] {
+  const issues: string[] = [];
+  const firstSection = readme.search(/^##\s/m);
+  const opening = firstSection === -1 ? readme : readme.slice(0, firstSection);
+  if (!referencesOf(opening).includes(DEMO)) {
+    issues.push(`${README}: does not show ${DEMO} before its first section — the front page opens with the moving demo \`make demo\` records`);
+  }
+  const makefile = existsSync(join(projectRoot, "Makefile")) ? readFileSync(join(projectRoot, "Makefile"), "utf-8") : "";
+  const recipe = /^demo:[^\n]*\n((?:\t[^\n]*\n?)+)/m.exec(makefile)?.[1] ?? null;
+  if (recipe === null) {
+    issues.push(`Makefile: no \`demo\` target — ${DEMO} needs one command that re-records it from the app's own views`);
+  } else if (!recipe.includes(DEMO)) {
+    issues.push(`Makefile: the \`demo\` recipe does not write ${DEMO} — the README would show a recording no command makes`);
+  }
   return issues;
 }
 

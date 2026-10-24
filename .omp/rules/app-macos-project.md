@@ -34,7 +34,7 @@ A target compiles exactly the sources under the directory of its own name, plus
 | `JuiceWidget` | `app/macos/JuiceWidget/` + `app/macos/Shared/` | `JuiceWidget.appex` — the sandboxed widget, embedded in the app; it only displays the snapshot the app published |
 
 `app/macos/CoreTests/` is a SwiftPM package (`make swift-test`, `make
-battery-probe`, `make app-icon`, `make widget-snapshots`), not part of the Xcode project; it reaches the core
+battery-probe`, `make app-icon`, `make widget-snapshots`, `make demo`), not part of the Xcode project; it reaches the core
 through symlinks, never by membership.
 
 ## Project Conventions
@@ -76,6 +76,14 @@ through symlinks, never by membership.
   suffix keeps Spotlight out of the one build directory, and every Xcode build
   registers its app with Launch Services again: `make app-install` unregisters
   the build copies, `make clean` unregisters them before deleting them.
+- **One registered copy.** Launch Services and pluginkit know every `Juice.app`
+  an Xcode build or `make dist` ever produced, and the widget host prefers the
+  copy with the highest version — a stale Release `0.1.0` beside the Debug
+  build kept winning, and the menu bar showed two icons. Only
+  `/Applications/Juice.app` and the Debug build `make run` launches may stay
+  registered: `make run` unregisters every other copy by absolute path (their
+  widget registrations and embedded Sparkle updaters with it), and `make
+  doctor` lists what is registered and exits non-zero when anything else is.
 
 ## Adding a New Native Source File
 
@@ -93,25 +101,58 @@ through symlinks, never by membership.
 
 ## Running on This Mac
 
+- **`make doctor` first.** When the app, the widget or a permission misbehaves,
+  run `make doctor` before reading logs: it is read-only and reports every
+  registered copy of `com.uk.juice` with its path and version, the widget
+  registration pluginkit chose against the app that runs, the code-signing
+  identity against the project's `DEVELOPMENT_TEAM`, Apple's WWDR G3
+  intermediate, `xcode-select -p`, and Metro. Its findings name the fix; a
+  clean report rules the environment out in seconds.
 - **Signing identity.** `make build` needs an *Apple Development* identity for
   the project's team in the login keychain (Xcode › Settings › Accounts ›
   Manage Certificates). If `security find-identity -v -p codesigning` lists
   none while the certificate is present, the keychain is missing Apple's WWDR
-  G3 intermediate certificate.
+  G3 intermediate certificate (`make doctor` says so). `xcode-select -p` must
+  point at Xcode, not the Command Line Tools, once Xcode is installed.
+- **A folder-permission or TCC symptom is a signing symptom first.** "Folder
+  access denied", a widget that shows its sample, a permission dialog that
+  never appears: check the signing identity and the App Group prefix
+  (`make doctor`, then the entitlements) before chasing `tccd` lines in `log
+  show`. With no valid identity the build is ad-hoc signed, the App Group
+  loses its `$(TeamIdentifierPrefix)`, and macOS denies the shared container
+  without prompting.
 - **Debug needs Metro.** The Debug build loads its JavaScript from Metro;
-  without `make start` the app runs with an empty window; the menu bar item
-  still reads and alerts, because those live in Swift.
-- **`make run`** rebuilds, quits the running app (a menu bar app keeps the
-  old build alive otherwise), re-registers the widget extension and restarts
-  the widget host so the gallery and the placed widgets pick up the new build.
+  without `make start` the app runs with an empty window (the menu bar item
+  still reads and alerts, because those live in Swift). `make run` therefore
+  refuses to start, before the Xcode build, while nothing answers on 8081:
+  run `make start` first, or install a Release with `make app-install`. A
+  Metro that predates a config edit serves the old config: restart it.
+- **`make run`** checks Metro, rebuilds, quits the running app (a menu bar app
+  keeps the old build alive otherwise), unregisters every other registered
+  copy, re-registers the widget extension and restarts the widget host so the
+  gallery and the placed widgets pick up the new build.
 - **`make app-logs`** streams the log lines of the running app and its widget
   extension (`log stream`, filtered by process name).
+- **Observation is lost, not postponed.** `log show` keeps only `notice` and
+  above for any span that has passed, and only after a few minutes — an `info`
+  line the code printed is gone by the time it is asked for. Anything a
+  decision depends on (a monitor's refresh, a threshold crossing) is logged at
+  `notice` so it can be read back. A background `log stream` dies with the
+  command that started it: stream into a file the command owns, and read the
+  file.
+- **Never drive the GUI by screen coordinates.** A click at fixed coordinates
+  lands on whichever window is there — seven clicks once reached another
+  application. Act on elements through Accessibility (the element's own press
+  or value action), or ask the user to do it.
 - **`make battery-probe`** reads every connected device's battery once from the
   terminal through the app's own reader, without the app or React, to tell a
-  reader fault from a UI one.
+  reader fault from a UI one. What a device reports, sends or supports is
+  stated only with that output quoted (or pinned as a test fixture).
 - **Bluetooth and Input Monitoring permission** are asked once per signing
   identity. A rebuilt app with the same team keeps them; an ad-hoc build is a new
-  app every time. A keyboard's battery report needs Input Monitoring.
+  app every time. A keyboard's battery report needs Input Monitoring. Granting
+  Input Monitoring or Screen Recording makes macOS quit the app: expected, not
+  a crash — launch it again.
 - **Editor diagnostics are not the gate.** SourceKit type-checks one file at a
   time, so a file in `Shared/`, `Native/Core/` or `JuiceWidget/` that uses a
   type from a sibling file reports "Cannot find '…' in scope". The
@@ -125,6 +166,11 @@ through symlinks, never by membership.
 entitlements files — it builds nothing and contacts no device. It is dormant
 (cause `absent`) while the Xcode project does not exist.
 
+The Mac's own state — registered copies, the widget registration, the signing
+chain, the toolchain — is not a tree property, so it is not a `verify` gate:
+`make doctor` (`lib/app-doctor.ts`, read-only) reports it on demand and `make
+run` acts on it (Metro, stray copies).
+
 ## Never Do These
 
 - Add a `.swift`/`.m` under `app/macos/` without registering it in its target
@@ -136,3 +182,7 @@ entitlements files — it builds nothing and contacts no device. It is dormant
 - Build with `react-native run-macos`, Xcode's default DerivedData, or an
   `xcodebuild` without `-derivedDataPath` — each leaves another Juice.app listed
 - Delete a build directory without unregistering its app (`make clean` does both)
+- Launch a Debug build without Metro answering on 8081, or point at a stale Metro
+- Register a second Juice.app by `open`ing a build from its directory while
+  another copy is registered — `make run` and `make app-install` own that
+- Drive the macOS GUI by screen coordinates

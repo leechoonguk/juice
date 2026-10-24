@@ -1,7 +1,7 @@
-.PHONY: help install pods start run build app-logs typecheck lint test swift-check swift-test battery-probe app-icon widget-snapshots verify clean commit push \
-	dist release unrelease app-install \
+.PHONY: help install pods start run build app-logs typecheck lint test swift-check swift-test battery-probe app-icon widget-snapshots demo verify clean commit push \
+	dist release unrelease app-install doctor hook-report \
 	check-app-duplicate-blocks check-app-macos-project check-app-native-boundary check-code-layout check-makefiles \
-	check-omp-hooks check-omp-rules check-omp-skills check-omp-types check-readme check-release check-tooling check-verify
+	check-omp-hooks check-omp-probes check-omp-rules check-omp-skills check-omp-types check-readme check-release check-tooling check-verify
 
 APP := app
 MACOS := $(APP)/macos
@@ -48,10 +48,15 @@ build: ## Build the macOS app and widget extension, Debug, into app/macos/build/
 
 # A menu bar app keeps running, so a fresh build is not what runs until the old
 # process quits; the widget host caches the extension until it is re-registered,
-# and prefers a Release copy `make dist` left (a higher version) over this build.
-run: build ## Build, quit the running app, re-register the widget and launch the build (requires Xcode; Debug needs `make start`)
+# and prefers a copy with a higher version (a Release `make dist` left) over this
+# build — so every other registered copy is unregistered by absolute path, leaving
+# /Applications and this build. Debug loads its JS from Metro, so the minutes of
+# the Xcode build wait on Metro answering: an empty window is the symptom of its absence.
+run: ## Build, quit the running app, unregister every other copy, re-register the widget and launch the build (requires Xcode; Debug needs `make start`)
+	node .omp/hooks/lib/app-doctor.ts metro
+	$(MAKE) build
 	-pkill -x $(APP_NAME)
-	-pluginkit -r "$(DERIVED_DATA)/Build/Products/Release/$(APP_NAME).app/Contents/PlugIns/JuiceWidget.appex"
+	node .omp/hooks/lib/app-launch-services.ts unregister-others "$(abspath $(BUILT_APP))"
 	pluginkit -a "$(BUILT_APP)/Contents/PlugIns/JuiceWidget.appex"
 	open "$(BUILT_APP)"
 	-killall chronod
@@ -81,18 +86,21 @@ swift-test: ## Run the Swift Testing suite over the React-free Swift (SwiftPM, n
 		-Xlinker -rpath -Xlinker "$(DEVELOPER_PATH)/Library/Developer/Frameworks" \
 		-Xlinker -rpath -Xlinker "$(DEVELOPER_PATH)/Library/Developer/usr/lib"
 
-battery-probe: ## Read every connected device's battery once from the terminal through the app's reader (no React)
+battery-probe: ## Read every connected device's battery once from the terminal (through the app's own reader, no React)
 	swift run --package-path $(MACOS)/CoreTests juice-probe $(ARGS)
 
-app-icon: ## Render the app icon into the asset catalog from its Swift drawing (CoreTests/Icon)
+app-icon: ## Render the app icon from its Swift drawing into the asset catalog (CoreTests/Icon)
 	swift run --package-path $(MACOS)/CoreTests juice-icon $(MACOS)/Juice-macOS/Assets.xcassets/AppIcon.appiconset
 
-# The README's widget pictures (rule://root-readme): rendered from the widget's
-# own views, so a changed widget is regenerated, never redrawn by hand.
+# The README's pictures (rule://root-readme): rendered from the widget's own
+# views, so a changed widget is regenerated, never redrawn by hand.
 widget-snapshots: ## Render docs/widgets-light.png and docs/widgets-dark.png from the widget's own views (requires macOS)
 	swift run --package-path $(MACOS)/CoreTests juice-widget-snapshots docs
 
-verify: lint typecheck test swift-check swift-test check-app-duplicate-blocks check-app-macos-project check-app-native-boundary check-code-layout check-makefiles check-omp-hooks check-omp-rules check-omp-skills check-omp-types check-readme check-release check-tooling ## Run every gate that runs without Xcode
+demo: ## Record docs/demo.gif — the widget's own views over a scripted desk of made-up devices (requires macOS and ffmpeg)
+	swift run --package-path $(MACOS)/CoreTests juice-widget-snapshots --demo docs/demo.gif
+
+verify: lint typecheck test swift-check swift-test check-app-duplicate-blocks check-app-macos-project check-app-native-boundary check-code-layout check-makefiles check-omp-hooks check-omp-probes check-omp-rules check-omp-skills check-omp-types check-readme check-release check-tooling ## Run every gate that runs without Xcode
 
 clean: ## Remove build output and caches (the Debug app is unregistered first, so nothing lists a deleted copy)
 	-pluginkit -r "$(BUILT_APP)/Contents/PlugIns/JuiceWidget.appex" 2>/dev/null
@@ -125,6 +133,12 @@ unrelease: ## Delete a GitHub release and its tag (usage: make unrelease v=vX.Y.
 app-install: ## Install the published release into /Applications as the only registered Juice (build copies are unregistered)
 	node .omp/hooks/lib/app-release.ts install
 
+doctor: ## Report, read-only, every registered copy, the widget registration, the signing chain and the toolchain (exit 1 on a finding)
+	node .omp/hooks/lib/app-doctor.ts
+
+hook-report: ## Report what the hooks cost, which warnings were acted on and which pre hooks blocked how often (from .omp/state/hook-metrics.jsonl)
+	node .omp/hooks/lib/hook-metrics.ts
+
 # Harness checks — one target per .omp/hooks/post/ hook (rule://root-makefile).
 # Every one is a `verify` prerequisite except check-verify, which runs `verify`.
 check-app-duplicate-blocks: ## Check app/ sources for duplicated block runs (stale rewrite + partial edits)
@@ -144,6 +158,9 @@ check-makefiles: ## Check Makefile targets against root-makefile.md and the post
 
 check-omp-hooks: ## Check .omp/hooks/ against omp-hooks.md and the hook contract
 	node .omp/hooks/post/check-omp-hooks.ts
+
+check-omp-probes: ## Run the pre hooks' probe table (.omp/hooks/probes.json) and compare every verdict
+	node .omp/hooks/post/check-omp-probes.ts
 
 check-omp-rules: ## Check .omp/rules/ frontmatter, naming and TTSR triggers
 	node .omp/hooks/post/check-omp-rules.ts

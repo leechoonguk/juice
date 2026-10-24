@@ -1,4 +1,8 @@
 import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
+import { recordedBlocks } from "../lib/hook-metrics.ts";
+// @ts-expect-error — Node builtin, not project-compiled
+import { relative } from "node:path";
+import { canonical, eventWithCwd, isInsideProject, projectRoot, toolPath } from "../lib/hook-project-root.ts";
 
 /**
  * Strict-Tooling Pre Hook
@@ -23,6 +27,11 @@ import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
  *   - Ad-hoc script directories (`scripts/`, `tools/`, `bin/`, `utils/` at the
  *     project root) are blocked: tooling that is not under `.omp/hooks/` is not
  *     discovered by `check-omp-hooks` and not registered in the Makefile.
+ *   - Only this project's files are judged: the root comes from this hook's own
+ *     location (`lib/hook-project-root.ts`), never from the session's working
+ *     directory, so a sibling project's file, or one under `/tmp`, is not this
+ *     harness's business and is never blocked here. A relative path is read
+ *     against the event's own cwd (`toolPath`).
  *
  * To add/remove locations: edit the allowlists below. No other logic changes.
  */
@@ -32,16 +41,16 @@ const FORBIDDEN_SCRIPTS = /\.(py|rb|sh|bash|zsh)$/;
 const NATIVE_SOURCES = /\.(swift|m|mm|h)$/;
 const ADHOC_SCRIPT_DIRS = /^(?:scripts|tools|bin|utils)\//;
 
-const projectRoot = `${process.cwd()}/`;
-
 export default function strictTooling(pi: ExtensionAPI): void {
-  pi.on("tool_call", (event: { toolName: string; input: Record<string, unknown> }, _ctx: unknown) => {
+  // ctx-ok: the session cwd resolves a relative path (eventWithCwd reads it inside a try); it is never a root.
+  pi.on("tool_call", recordedBlocks("strict-tooling", (event: { toolName: string; input: Record<string, unknown> }, ctx: unknown) => {
+    const where = eventWithCwd(event, ctx);
     // 중복 경로 오타를 먼저 짚는다. 원 하네스 전수 점검: 차단 9건 중 6건이 `x/x/...` 형태였는데,
     // 안내는 "스크립트 금지 — TypeScript 로 옮기라"였다. 모델은 앱 코드를 다른 언어로 다시 쓰라는
     // 말로 읽고 같은 경로를 재시도했다.
     {
       const p0 = String(event.input?.path ?? "").replace(/#[0-9A-Fa-f]{4}$/, "");
-      const dup = /(^|\/)(app|macos|Juice)\/\2\//.exec(p0);
+      const dup = normalize(p0, where) === "" ? null : /(^|\/)(app|macos|Juice)\/\2\//.exec(p0);
       if (dup) {
         return {
           block: true,
@@ -56,7 +65,7 @@ export default function strictTooling(pi: ExtensionAPI): void {
     if (event.toolName === "edit") {
       const patch = String(event.input?.input ?? "");
       for (const mv of patch.matchAll(/^MV\s+(?:"([^"]+)"|(\S+))\s*$/gm)) {
-        const blockedMove = toolingViolation(normalize(mv[1] ?? mv[2] ?? ""));
+        const blockedMove = toolingViolation(normalize(mv[1] ?? mv[2] ?? "", where));
         if (blockedMove !== null) return blockedMove;
       }
       return;
@@ -65,10 +74,10 @@ export default function strictTooling(pi: ExtensionAPI): void {
 
     // 앵커드 편집이 붙이는 내용 태그(`App.tsx#0D77`)를 먼저 벗긴다 — 태그가 남으면 확장자
     // 판정이 전부 빗나가 정책이 조용히 통과된다.
-    const path = normalize(String(event.input?.path ?? "").replace(/#[0-9A-Fa-f]{4}$/, ""));
+    const path = normalize(String(event.input?.path ?? "").replace(/#[0-9A-Fa-f]{4}$/, ""), where);
     if (path === "") return;
     return toolingViolation(path) ?? undefined;
-  });
+  }));
 }
 
 /** 한 경로에 대한 tooling 정책 판정 — write 와 edit 의 MV 대상이 같은 규칙을 본다. */
@@ -133,10 +142,11 @@ function toolingViolation(path: string): { block: true; reason: string } | null 
  * The project-relative form of a path, or "" when the path leaves the project —
  * a sibling project in the same workspace keeps its own policy, and judging its
  * files by this one blocked a Swift package that had nothing to do with `app/`.
+ * "Outside" is never a violation: the empty answer means "not this project's file".
+ * Relative paths resolve against the event's cwd when it carries one, else the project root.
  */
-function normalize(path: string): string {
-  if (path.startsWith("/") && !path.startsWith(projectRoot)) return "";
-  const relative = path.startsWith(projectRoot) ? path.slice(projectRoot.length) : path;
-  const clean = relative.replace(/^\.\//, "");
-  return clean.startsWith("../") ? "" : clean;
+function normalize(path: string, event: unknown): string {
+  if (path === "") return "";
+  const abs = toolPath(path, event);
+  return isInsideProject(abs) ? relative(projectRoot, canonical(abs)) : "";
 }

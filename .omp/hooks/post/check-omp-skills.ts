@@ -8,10 +8,10 @@ import { buildSafeWarning, resetSuppression, wrapWarning } from "../lib/hook-saf
 import { guarded } from "../lib/hook-visibility.ts";
 import { printRuleHint } from "../lib/hook-rule-hint.ts";
 import { MUTATING_TOOLS } from "../lib/hook-mutating-tools.ts";
+import { projectRoot } from "../lib/hook-project-root.ts";
 
 declare const process: {
   argv: string[];
-  cwd(): string;
   exitCode?: number;
 };
 
@@ -31,7 +31,7 @@ declare const process: {
  * `enforced-by: []`, and must reference at least one `rule://` domain that
  * carries its enforcement instead.
  */
-const cwd = process.cwd();
+const cwd = projectRoot;
 const skillsDir = join(cwd, ".omp", "skills");
 const catalogPath = join(cwd, ".omp", "rules", "omp-skills.md");
 const hooksPostDir = join(cwd, ".omp", "hooks", "post");

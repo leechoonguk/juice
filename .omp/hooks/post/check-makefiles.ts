@@ -8,6 +8,7 @@ import { buildSafeWarning, wrapWarning, resetSuppression } from "../lib/hook-saf
 import { guarded } from "../lib/hook-visibility.ts";
 import { printRuleHint } from "../lib/hook-rule-hint.ts";
 import { MUTATING_TOOLS } from "../lib/hook-mutating-tools.ts";
+import { projectRoot } from "../lib/hook-project-root.ts";
 
 /**
  * Check-Makefiles Post Hook
@@ -31,7 +32,7 @@ import { MUTATING_TOOLS } from "../lib/hook-mutating-tools.ts";
  * This is a read-only check — it does NOT block tool calls.
  * To fix inconsistencies: update .PHONY, ## documentation, or target implementations.
  */
-const cwd = process.cwd();
+const cwd = projectRoot;
 const ompDir = join(cwd, ".omp");
 const rulesDir = join(ompDir, "rules");
 
@@ -59,7 +60,6 @@ const GATE_RUNNER = "check-verify";
  * 규칙·훅·확장·스킬의 make 참조를 Makefile 의 실타깃과 대조한다. "존재하지 않는다" 고
  * 경고하는 문장 자신은 제외한다.
  */
-const projectRoot = process.cwd();
 
 export function checkMakeTargetReferences(): string[] {
   const issues: string[] = [];
@@ -148,7 +148,8 @@ function checkMakefileConsistency(): string[] {
     }
 
     const ruleContent = readFileSync(rulePath, "utf-8");
-    const ruleTargets = parseMarkdownTable(ruleContent);
+    const ruleRows = parseMarkdownRows(ruleContent);
+    const ruleTargets = new Set(ruleRows.keys());
 
     const makefilePathFull = join(cwd, makefilePath);
     if (!existsSync(makefilePathFull)) {
@@ -187,6 +188,7 @@ function checkMakefileConsistency(): string[] {
     // skip the intended hook.
     issues.push(...checkTargetRecipes(makefilePathFull, label));
     issues.push(...checkTargetHelp(makefilePathFull, label));
+    issues.push(...checkHelpMatchesRows(makefilePathFull, ruleRows, ruleFile, label));
   }
 
   issues.push(...checkMakeTargetReferences());
@@ -368,12 +370,12 @@ function checkHooksRegisteredInMakefile(): string[] {
   return issues;
 }
 
-function parseMarkdownTable(content: string): Set<string> {
-  const targets = new Set<string>();
-  const lines = content.split(/\r?\n/);
+/** The documented rows of the "Makefile Targets" section: target name → the whole row text. */
+function parseMarkdownRows(content: string): Map<string, string> {
+  const rows = new Map<string, string>();
   let inMakefileTargets = false;
 
-  for (const line of lines) {
+  for (const line of content.split(/\r?\n/)) {
     const trimmed = line.trim();
 
     // Detect section headers — only parse the "Makefile Targets" section
@@ -381,19 +383,39 @@ function parseMarkdownTable(content: string): Set<string> {
       inMakefileTargets = trimmed === "## Makefile Targets";
       continue;
     }
-
-    // Only parse in the Makefile Targets section
     if (!inMakefileTargets) continue;
 
     // Match table rows: | `make target` | ... |
     const rowMatch = trimmed.match(/^\|.*?`make\s+(\S+?)`.*?\|/);
-    if (rowMatch) {
-      targets.add(rowMatch[1]);
-      continue;
-    }
+    if (rowMatch) rows.set(rowMatch[1], trimmed);
   }
 
-  return targets;
+  return rows;
+}
+
+/**
+ * A target's `##` help text and its row in root-makefile.md describe one thing in two
+ * places, and nothing tied them together: a recipe's purpose changed in one and the other
+ * kept the old claim. The help text's first clause (up to the first `,` `;` `:` ` (` or ` — `)
+ * must appear in the row, compared case-insensitively without code marks; when it does not,
+ * the issue names both texts so the reader sees which one moved.
+ */
+function checkHelpMatchesRows(makefilePath: string, rows: Map<string, string>, ruleFile: string, label: string): string[] {
+  const issues: string[] = [];
+  const squash = (text: string): string => text.replace(/[`*]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+  for (const line of readFileSync(makefilePath, "utf-8").split(/\r?\n/)) {
+    const match = /^([A-Za-z0-9_-]+):(?!=).*?## (.+)$/.exec(line);
+    if (match === null) continue;
+    const row = rows.get(match[1]);
+    if (row === undefined) continue; // an undocumented target is reported on its own
+    const clause = match[2].split(/[,;:]| \(| — /)[0].trim();
+    if (squash(row).includes(squash(clause))) continue;
+    issues.push(
+      `${label}: target '${match[1]}' help says "${match[2]}" but its row in ${ruleFile} does not contain "${clause}" — ` +
+        `the row reads: ${row.split("|").slice(-2, -1)[0]?.trim() ?? row}`,
+    );
+  }
+  return issues;
 }
 
 /**

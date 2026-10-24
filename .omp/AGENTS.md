@@ -69,12 +69,19 @@ project directory.
 | Unit gates while working | `make lint`, `make typecheck`, `make test`, `make swift-check`, `make swift-test` |
 | Run the app as built (Xcode) | `make start` once, then `make run`; `make app-logs` to follow the app and the widget |
 | Read batteries without the app | `make battery-probe` (every connected device, once, from the terminal) |
+| The Mac's state (copies, widget registration, signing, Metro) | `make doctor` (read-only); `make run` drops stray copies and refuses to start Debug without Metro |
 | App icon | `make app-icon` (rendered from `CoreTests/Icon`) |
 | The README's pictures | `make widget-snapshots` (macOS) |
 | Release (only when asked) | `make release bump=patch\|minor\|major` (`DRY_RUN=1` first); `make app-install` puts the published build in /Applications |
 | One harness check | `make check-<name>` (listed by `make help`) |
 | The whole gate | `make verify` — runs once, at commit, through `make commit` |
 | Publish (only when asked) | `make commit m="type(scope): subject"`, `make push` |
+
+Device facts are measured: say what a device reports only with the
+`make battery-probe` output behind it (or a pinned fixture), otherwise mark it
+unverified (rule://app-native-boundary); real device identifiers never enter
+the tree (rule://code-layout). The edit guard's `// intent: replace` flag lives
+in an edit body only, never in a file.
 
 ## Rules (`.omp/rules/`)
 

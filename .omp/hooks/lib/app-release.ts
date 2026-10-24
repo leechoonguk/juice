@@ -9,6 +9,10 @@
  * GitHub release is what updates them — and an archive signed with a key the app
  * does not carry is a release no installed copy will ever accept.
  *
+ * Installed copies download the feed and the archive without logging in, so
+ * `release` refuses, before it builds or tags anything, when the repository is
+ * not public: a release from a private repository is a 404 for every installed copy.
+ *
  *   node app-release.ts dist <x.y.z>               build + package + sign into app/macos/build/dist
  *   node app-release.ts release <patch|minor|major> [--dry-run]
  *   node app-release.ts unrelease <vX.Y.Z>
@@ -28,7 +32,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, sym
 import { join } from "node:path";
 // @ts-expect-error — Node builtin, not project-compiled
 import { tmpdir } from "node:os";
-import { resolveProjectRoot } from "./hook-project-root.ts";
+import { projectRoot } from "./hook-project-root.ts";
+import { INSTALLED_APP, LSREGISTER, unregisterOthers } from "./app-launch-services.ts";
 
 declare const process: { argv: string[]; exit(code?: number): never; env: Record<string, string | undefined> };
 
@@ -72,12 +77,12 @@ const MINIMUM_SYSTEM = "14.0";
 const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 /** Commit subjects left out of release notes: they change nothing a user sees. */
 const NOTE_EXCLUDE = /^(docs|test|chore\(harness\))(\(|:)/;
-/** Where the one copy of Juice lives; Sparkle replaces this bundle in place. */
-const INSTALLED_APP = "/Applications/Juice.app";
-const LSREGISTER =
-  "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister";
 
-const root = resolveProjectRoot();
+/** What draws the README's pictures, and the pictures `make demo` / `make widget-snapshots` make from it. */
+const DRAWING = ["app/macos/JuiceWidget", "app/macos/Shared", "app/macos/CoreTests/WidgetSnapshots/main.swift"];
+const PICTURES = ["docs/demo.gif", "docs/widgets-light.png", "docs/widgets-dark.png"];
+
+const root = projectRoot;
 
 // ============================================================
 // Commands
@@ -126,6 +131,7 @@ export function release(bump: string | undefined, dryRun: boolean): void {
   if (spawnSync("gh", ["auth", "status"], { cwd: root, stdio: "ignore" }).status !== 0) {
     fail("gh (GitHub CLI) is missing or not logged in (gh auth login)");
   }
+  requirePublicRepository();
 
   // 1. The commit may be released.
   const branch = output("git", ["rev-parse", "--abbrev-ref", "HEAD"]).trim();
@@ -152,6 +158,7 @@ export function release(bump: string | undefined, dryRun: boolean): void {
   const notes = releaseNotes(last === "v0.0.0" ? null : last);
   say(`${last} -> ${tag} (${bump})`);
   console.log(notes);
+  if (last !== "v0.0.0") staleDemoNote(last);
   if (dryRun) {
     say("dry run: nothing built, tagged or published");
     return;
@@ -177,13 +184,6 @@ export function release(bump: string | undefined, dryRun: boolean): void {
   const feed = output("gh", ["release", "download", "-R", RELEASE_REPO, "--pattern", FEED_ASSET, "--output", "-"]);
   if (!feed.includes(`<sparkle:version>${next}</sparkle:version>`)) {
     fail(`the latest release's ${FEED_ASSET} does not name ${next} — installed copies still see the previous release`);
-  }
-  const visibility = output("gh", ["repo", "view", RELEASE_REPO, "--json", "visibility", "--jq", ".visibility"]).trim();
-  if (visibility !== "PUBLIC") {
-    say(
-      `warning: ${RELEASE_REPO} is ${visibility.toLowerCase()} — installed copies download without logging in, ` +
-        `so none can fetch ${FEED_URL} or this release until the repository is public`,
-    );
   }
   say(`released ${tag}: https://github.com/${RELEASE_REPO}/releases/tag/${tag}`);
 }
@@ -219,14 +219,7 @@ export function install(): void {
     run("codesign", ["--verify", "--deep", "--strict", join(mount, "Juice.app")]);
 
     spawnSync("pkill", ["-x", "Juice"], { stdio: "ignore" });
-    for (const copy of buildCopies()) {
-      spawnSync("pluginkit", ["-r", `${copy}/Contents/PlugIns/JuiceWidget.appex`], { stdio: "ignore" });
-      // The copy's embedded Sparkle updater is registered beside it, and outlives it otherwise.
-      for (const bundle of [copy, `${copy}/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app`]) {
-        spawnSync(LSREGISTER, ["-u", bundle], { stdio: "ignore" });
-      }
-      say(`unregistered ${copy}`);
-    }
+    for (const line of unregisterOthers([])) say(line);
     rmSync(INSTALLED_APP, { recursive: true, force: true });
     run("ditto", [join(mount, "Juice.app"), INSTALLED_APP]);
     run(LSREGISTER, ["-f", INSTALLED_APP]);
@@ -286,14 +279,19 @@ function signingIdentity(): string {
 }
 
 /**
- * Every Juice.app Launch Services knows besides the installed one — what Launchpad,
- * `open -b` and the widget gallery choose from. Read from its own registry, not
- * Spotlight: the build directory is `.noindex`, so Spotlight never sees a build copy.
+ * Installed copies download the feed and the archive without logging in, so a release in a
+ * private repository is a release none of them can reach (`releases/latest/download/…` is a 404
+ * for them). Checked before anything is tagged or built.
  */
-function buildCopies(): string[] {
-  const dump = output(LSREGISTER, ["-dump"]);
-  const paths = [...dump.matchAll(/^path:\s+(.+?\/Juice\.app)\s+\(0x[0-9a-f]+\)$/gm)].map((match) => match[1]);
-  return [...new Set(paths)].filter((path) => path !== INSTALLED_APP);
+function requirePublicRepository(): void {
+  const visibility = output("gh", ["repo", "view", RELEASE_REPO, "--json", "visibility", "--jq", ".visibility"]).trim();
+  if (visibility !== "PUBLIC") {
+    fail(
+      `${RELEASE_REPO} is ${visibility.toLowerCase()} — installed copies download ${FEED_URL} without logging in, so a release ` +
+        "published from it is unreachable (404) for every installed copy; make the repository public first " +
+        `(gh repo edit ${RELEASE_REPO} --visibility public --accept-visibility-change-consequences)`,
+    );
+  }
 }
 
 /** The single-item Sparkle feed for `version`. */
@@ -328,6 +326,20 @@ function releaseNotes(last: string | null): string {
     .split("\n")
     .filter((subject) => subject !== "" && !NOTE_EXCLUDE.test(subject));
   return subjects.length === 0 ? "Maintenance release." : subjects.map((subject) => `- ${subject}`).join("\n");
+}
+
+/**
+ * The README's pictures are re-recorded by hand (`make demo`, `make widget-snapshots`):
+ * note, do not block, when what draws them changed since `last` and none of them did —
+ * the front page would show a widget the release no longer draws (rule://root-readme).
+ */
+function staleDemoNote(last: string): void {
+  const changed = (paths: string[]): boolean =>
+    spawnSync("git", ["diff", "--quiet", last, "HEAD", "--", ...paths], { cwd: root }).status === 1;
+  if (changed(DRAWING) && !changed(PICTURES)) {
+    say(`note: the widget or the demo script changed since ${last}, docs/demo.gif and the widget pictures did not;`);
+    say("      if the widget looks different now, run make demo and make widget-snapshots, look at them, and commit them first");
+  }
 }
 
 function keychainPublicKey(): string {

@@ -27,7 +27,7 @@ Development builds (`0.0.0`, a Debug Mac build) never check.
 |---|---|---|
 | Consent | `strict-publish-consent.ts` | `make release` / `make unrelease` when the current user turn does not ask for a release (or asks and forbids it); `make release … DRY_RUN=1` is exempt |
 | Route | `strict-release-route.ts` | raw `git tag` writes, pushing a version tag, `gh release create/delete/edit/upload/delete-asset` |
-| Consistency | `check-release.ts` (in `make verify`) | a feed URL other than the one `app-release.ts` publishes, a malformed `SUPublicEDKey`, a literal version in either Info.plist, no Sparkle pod; and, only if the app were sandboxed (it is not; its widget is), a missing installer service or mach-lookup exception |
+| Consistency | `check-release.ts` (in `make verify`) | a feed URL other than the one `app-release.ts` publishes, a malformed `SUPublicEDKey`, a literal version in either Info.plist, no Sparkle pod, a `release()` that does not call `requirePublicRepository()` before it tags; and, only if the app were sandboxed (it is not; its widget is), a missing installer service or mach-lookup exception |
 
 ## Versions
 
@@ -66,13 +66,17 @@ current version.
    framework, `codesign --verify --deep --strict`) and signs the archive, without
    publishing. Install it by hand to try it.
 3. `make release bump=patch|minor|major DRY_RUN=1` — every preflight check, the
-   next version and its notes; publishes nothing and needs no request.
+   next version and its notes; publishes nothing and needs no request. The
+   first preflight is the repository's visibility: installed copies download
+   the feed and the archive without logging in, so a release from a private
+   repository is a 404 for every one of them. `app-release.ts` fails — before
+   anything is built, tagged or pushed — unless `gh repo view` reports the
+   repository `PUBLIC`; make it public first.
 4. `make release bump=…` — only when the user asks in the current turn. It runs
    `make verify`, rebuilds via `dist`, tags, pushes the tag, creates the GitHub
    release with `Juice-<version>-macos.dmg`, `appcast.xml` and `checksums.txt`, and verifies
    both the attached assets and that the latest release's `appcast.xml` now
-   names the new version (read through `gh`; it warns when the repository is
-   not public, because installed copies download without logging in).
+   names the new version (read through `gh`).
 5. Publishing is all there is: CI (`.github/workflows/native.yml`) only runs the
    gate and an unsigned build, never attaches or uploads anything to a release,
    and holds no Apple or Sparkle key.
@@ -82,6 +86,7 @@ current version.
 | Where | State | What to do |
 |---|---|---|
 | Preflight, build, signing | nothing published | fix what it names; run again |
+| Preflight: repository not public | nothing built or tagged | the repository's visibility is the owner's decision: ask the user to make it public, then run again |
 | `gh release create` or the read-back | tag pushed, release missing or partial | `make unrelease v=vX.Y.Z`, fix, release again |
 | After publishing | release public, installed copies updating | fix and release the next version; `make unrelease` only if the release harms users — `latest` falls back to the previous one |
 

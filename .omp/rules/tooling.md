@@ -40,13 +40,24 @@ scan) and `check-omp-types.ts` (the harness type-checks).
   `make swift-check` and `make swift-test` compile without Xcode.
 - **`.omp/hooks/` and `.omp/extensions/` are TypeScript only.** Hooks and libs
   import each other, so a stray `.js`/`.mjs` breaks the import graph and the
-  type contract.
+  type contract. The one data file is `.omp/hooks/probes.json`, the pre hooks'
+  verdict table that `check-omp-probes` reads.
 - **No project-root `scripts/`, `tools/`, `bin/`, `utils/`.** Tooling outside
   `.omp/hooks/` is invisible to `check-omp-hooks` (no rule↔hook mapping, no
   contract table) and to `make`, so nothing runs it.
 - **No throwaway scripts.** A verification script kept outside the project
   proves nothing after the session ends: land it as a hook with a make target,
   or do not rely on it.
+- **Scratch and build output stay out of lint scope.** `eslint .` runs over all
+  of `app/`; ESLint ignores `macos/build/**` (`app/.eslintrc.js`
+  `ignorePatterns`), the one directory tools write generated files into. A probe
+  dump, a recorded log or a generated bundle written anywhere else under `app/`
+  is linted as source and fails the gate: write it under `app/macos/build/` or
+  outside the repository.
+- **The write guard judges this project only.** `strict-tooling` takes the
+  project root from its own location, so a file of a sibling project, or one
+  under `/tmp`, is never blocked by this project's placement policy
+  (rule://omp-hooks, Project root).
 
 ## Execution
 

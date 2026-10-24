@@ -81,6 +81,19 @@ app.
   exists only in a protocol extension is statically dispatched: a conformer's
   own implementation is never called through the protocol, and nothing warns.
   Declare the method in the protocol, then give it a default in the extension.
+- **The widget draws shapes, not controls.** `ProgressView`, `Toggle`, `Slider`,
+  `TextField` and `Picker` are AppKit-backed: WidgetKit and `ImageRenderer`
+  cannot render them, so the widget gallery and the README's snapshots show a
+  placeholder where the bar should be. A level bar is a `Capsule` or `Circle`
+  stack; `check-app-native-boundary` rejects the controls in `JuiceWidget/`.
+- **An absent value crosses as an explicit null.** A payload sent to JavaScript
+  with optional fields lists every key, sending `NSNull` for a value that is
+  nil — never an omitted key. A synthesized `Codable` omits a nil key, the
+  JavaScript `=== null` test then misses `undefined`, and the window printed
+  `undefined%` with a full bar for a device that reports no level while every
+  Swift and JS test passed. Each such payload is pinned by a Swift payload test
+  asserting the nil case arrives as a key holding null (`CoreTests/Tests/`),
+  and the TypeScript type declares the field `number | null`, not optional.
 - **Device facts are measured, not guessed.** How a device reports its battery
   (a HID report layout, an LE characteristic, a system property) comes from a
   `make battery-probe` read of the real device and is pinned in
@@ -105,9 +118,10 @@ app.
 ## Enforcement
 
 `check-app-native-boundary` (`make check-app-native-boundary`, part of
-`make verify`) checks the conventions above except the last on code lines only —
-comments that explain the boundary may name what it forbids. It is dormant
-(cause `absent`) while `app/macos/` does not exist.
+`make verify`) checks every convention above except the last two — the null
+payload (pinned by its Swift test) and measured device facts (pinned by their
+captures) — on code lines only: comments that explain the boundary may name what
+it forbids. It is dormant (cause `absent`) while `app/macos/` does not exist.
 
 ## Never Do These
 
@@ -119,3 +133,5 @@ comments that explain the boundary may name what it forbids. It is dormant
 - Share app ↔ widget state through `UserDefaults(suiteName:)`
 - Define a method in a protocol extension that the protocol does not declare
 - Encode a device battery layout that no `make battery-probe` capture backs
+- Draw `ProgressView`, `Toggle`, `Slider`, `TextField` or `Picker` in the widget
+- Omit a key for an absent value in a payload sent to JavaScript — send `NSNull`

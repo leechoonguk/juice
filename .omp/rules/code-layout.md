@@ -1,5 +1,5 @@
 ---
-description: Code layout for every language — comments, TypeScript file layout and class member order, whitespace
+description: Code layout for every language — comments, TypeScript file layout and class member order, whitespace, no edit flag left in a file, no device address literal in code
 globs:
       - app/*.js
       - app/*.tsx
@@ -78,6 +78,28 @@ edit.
 - **Spaces, not tabs** - the sole exception is a `Makefile` recipe, where a tab
   is the language.
 
+## Edit Markers (every text asset)
+
+`// intent: replace` (also `# intent: replace`, `<!-- intent: replace -->`,
+` * intent: replace`) is a flag the edit guard (`strict-additive-writes`) reads
+from a patch to let a deliberate replacement through. It is edit protocol, never
+file content: written into a file it stays, shows in every later read and ships.
+A line that is, or ends with, that marker in any text asset fails the check
+(`check-code-layout`). The guard lets a cutover through without it when the
+removed name has no remaining reference in the project — remove it everywhere in
+the same patch — and its block message repeats that the marker belongs in the
+edit body only.
+
+## Device Literals (every code surface)
+
+A real device's Bluetooth address (`xx:xx:xx:xx:xx:xx` or `xx-xx-…`, six hex
+octets) in a test, fixture or comment is hardcoded identity that reads as a
+measurement. Code — `app/src`, `app/__tests__`, the entry files, the native trees
+and `CoreTests/` — may spell only the documented placeholders: the
+`AA:00:00:00:00:0n` family (n a hex digit) and `00:00:00:00:00:00`, in either
+separator and either case. A captured address becomes a placeholder before it is
+committed; a probe reads the real one at run time (`make battery-probe`).
+
 ## Review Judgement (not machine-checked)
 
 A hook can see that a comment exists, never whether it earns its line. These are
@@ -96,3 +118,5 @@ review concerns, and a violation is a review comment, not a failing check:
 - Put a helper function above a file's `export default`
 - Leave trailing whitespace, a tab indent, a CRLF line, or a missing/duplicated
   final newline in any text asset
+- Leave an `intent: replace` edit marker in a file
+- Write a real Bluetooth address into code; only the placeholders above

@@ -12,6 +12,7 @@ import { buildSafeWarning, wrapWarning, resetSuppression } from "../lib/hook-saf
 import { guarded } from "../lib/hook-visibility.ts";
 import { printRuleHint } from "../lib/hook-rule-hint.ts";
 import { MUTATING_TOOLS } from "../lib/hook-mutating-tools.ts";
+import { projectRoot } from "../lib/hook-project-root.ts";
 
 /**
  * Check-Omp-Rules Post Hook
@@ -34,7 +35,7 @@ import { MUTATING_TOOLS } from "../lib/hook-mutating-tools.ts";
  * To add a rule: create .omp/rules/<scope>-<name>.md with frontmatter only.
  * To validate: run `make check-omp-rules` (part of `make verify`).
  */
-const cwd = process.cwd();
+const cwd = projectRoot;
 const ompDir = join(cwd, ".omp");
 const agentsPath = join(ompDir, "AGENTS.md");
 const rulesDir = join(ompDir, "rules");

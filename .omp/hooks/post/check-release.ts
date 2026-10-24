@@ -20,6 +20,10 @@
  *      tag. A literal version ships every release as the same build, and Sparkle
  *      compares `CFBundleVersion` to decide whether an update is newer.
  *   5. Sparkle linked — the Podfile declares the `Sparkle` pod the app imports.
+ *   6. Public before published — `release()` in `app-release.ts` calls
+ *      `requirePublicRepository()` before it tags or builds. Installed copies
+ *      download the feed and archive without logging in, so a release from a
+ *      private repository is a 404 for every one of them.
  *
  * Reads files only (no keychain, no network). Dormant (cause `absent`) while the
  * app has no Info.plist.
@@ -35,7 +39,7 @@ import { printRuleHint } from "../lib/hook-rule-hint.ts";
 import { MUTATING_TOOLS } from "../lib/hook-mutating-tools.ts";
 import { touchesPath } from "../lib/hook-scope.ts";
 import { dormant, passLine } from "../lib/hook-dormancy.ts";
-import { resolveProjectRoot } from "../lib/hook-project-root.ts";
+import { projectRoot } from "../lib/hook-project-root.ts";
 import { FEED_URL } from "../lib/app-release.ts";
 import { plistArray, plistString, plistTrue } from "../lib/app-xcode-project.ts";
 
@@ -45,9 +49,9 @@ declare const process: { argv: string[]; exit(code?: number): never };
 // Constants
 // ============================================================
 
-const projectRoot = resolveProjectRoot();
 
 const APP_PLIST = "app/macos/Juice-macOS/Info.plist";
+const RELEASE_BUILDER = ".omp/hooks/lib/app-release.ts";
 const WIDGET_PLIST = "app/macos/JuiceWidget/Info.plist";
 const APP_ENTITLEMENTS = "app/macos/Juice-macOS/Juice.entitlements";
 const PODFILE = "app/macos/Podfile";
@@ -142,7 +146,21 @@ export function checkReleaseSync(): string[] {
     issues.push(`${PODFILE}: declares no 'Sparkle' pod, yet ${APP_PLIST} configures Sparkle — the app would not link`);
   }
 
+  issues.push(...checkPublicPreflight());
   return issues;
+}
+
+/** Claim 6: `make release` refuses a private repository before anything is tagged. */
+function checkPublicPreflight(): string[] {
+  const source = read(RELEASE_BUILDER);
+  const body = /export function release\([^)]*\): void \{([\s\S]*?)\n\}\n/.exec(source)?.[1] ?? "";
+  const preflight = body.indexOf("requirePublicRepository()");
+  const tagging = body.indexOf('"tag", "-a"');
+  if (preflight >= 0 && tagging >= 0 && preflight < tagging) return [];
+  return [
+    `${RELEASE_BUILDER}: release() does not call requirePublicRepository() before it tags — a release from a private ` +
+      "repository is a 404 for every installed copy (they download without logging in)",
+  ];
 }
 
 function read(path: string): string {

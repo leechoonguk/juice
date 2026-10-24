@@ -10,10 +10,10 @@ import { buildSafeWarning, wrapWarning, resetSuppression } from "../lib/hook-saf
 import { guarded } from "../lib/hook-visibility.ts";
 import { printRuleHint, ruleForHook } from "../lib/hook-rule-hint.ts";
 import { MUTATING_TOOLS } from "../lib/hook-mutating-tools.ts";
+import { projectRoot } from "../lib/hook-project-root.ts";
 
 declare const process: {
   argv: string[];
-  cwd(): string;
   execPath: string;
   exit(code?: number): never;
 };
@@ -43,7 +43,7 @@ declare const process: {
  * To add/remove hooks: update .omp/hooks/* and .omp/rules/omp-hooks.md,
  * then run `make check-omp-hooks` (part of `make verify`) to validate.
  */
-const cwd = process.cwd();
+const cwd = projectRoot;
 const ompDir = join(cwd, ".omp");
 const ompHooksMdPath = join(ompDir, "rules", "omp-hooks.md");
 
@@ -418,6 +418,16 @@ function checkOmpHooksSync(): string[] {
       if (!/pi\.on\("tool_call"/.test(hookContent)) {
         issues.push(`${actual}: missing tool_call event handler`);
       }
+      // Block recording: a pre hook that refuses a call leaves a line in .omp/state/hook-metrics.jsonl
+      // only when its tool_call handler runs through recordedBlocks(<file stem>, …) — an unrecorded
+      // block is friction nobody can count (`make hook-report`).
+      const stem = fileName.replace(/\.ts$/, "");
+      if (!new RegExp(`pi\\.on\\(\\s*["']tool_call["']\\s*,\\s*recordedBlocks\\(\\s*"${stem}"\\s*,`).test(hookContent)) {
+        issues.push(
+          `${actual}: the tool_call handler is not wrapped in recordedBlocks("${stem}", …) from ` +
+            "lib/hook-metrics.ts — its blocks would be invisible to `make hook-report`",
+        );
+      }
       issues.push(...checkPathTagStrip(actual, hookContent));
       issues.push(...checkChannelCoverage(actual, hookContent));
       issues.push(...checkNoCtxDereference(actual, hookContent));
@@ -439,6 +449,7 @@ function checkOmpHooksSync(): string[] {
 
   // --- 6. Feedback and policy boundaries ---
   issues.push(...checkHarnessGuardrails());
+  issues.push(...checkProjectRootDerivation());
 
   // --- 6b. Authoring invariants for the harness itself ---
   issues.push(...checkAuthoringInvariants(actualFiles));
@@ -661,7 +672,7 @@ function checkNoCtxDereference(actual: string, hookContent: string): string[] {
   const issues: string[] = [];
   const code = stripComments(hookContent);
   if (/ctx-ok:\s*\S/.test(hookContent)) return issues;
-  for (const handler of code.matchAll(/pi\.on\(\s*["']tool_call["']\s*,\s*(?:async\s*)?\(([^)]*)\)/g)) {
+  for (const handler of code.matchAll(/pi\.on\(\s*["']tool_call["']\s*,\s*(?:recordedBlocks\(\s*["'][^"']+["']\s*,\s*)?(?:async\s*)?\(([^)]*)\)/g)) {
     const parameters = splitArguments(handler[1]);
     const contextName = (parameters[1] ?? "").split(":")[0].trim();
     if (contextName === "") continue;
@@ -851,6 +862,50 @@ function checkHarnessGuardrails(): string[] {
     }
   }
 
+  return issues;
+}
+
+/**
+ * Project-root contract — a hook judges **its own** project. The root is the
+ * location of `lib/hook-project-root.ts`; the session's working directory is
+ * where the tool runs, which is another project when a sibling's hooks load
+ * into this session (or this project's into a sibling's). A hook or extension
+ * that derives a path from the session's working directory judges that
+ * sibling's files by this project's policy: blocked writes, and state files
+ * created in the wrong tree. Only `lib/hook-project-root.ts` may read it, to
+ * resolve a tool's relative path and to ask whether it is inside the project.
+ * The pattern is assembled from pieces so this file does not match itself.
+ */
+function checkProjectRootDerivation(): string[] {
+  const issues: string[] = [];
+  const sessionCwd = new RegExp("process\\.c" + "wd\\s*\\(|\\b\\w*[cC]tx\\.c" + "wd\\b");
+  const walk = (dir: string): string[] =>
+    !existsSync(dir)
+      ? []
+      : readdirSync(dir, { withFileTypes: true }).flatMap((entry: { name: string; isDirectory(): boolean }) =>
+        entry.isDirectory() ? walk(join(dir, entry.name)) : entry.name.endsWith(".ts") ? [join(dir, entry.name)] : []);
+  const helper = join(ompDir, "hooks", "lib", "hook-project-root.ts");
+  for (const path of [...walk(join(ompDir, "hooks")), ...walk(join(ompDir, "extensions"))]) {
+    const label = path.slice(ompDir.length + 1);
+    if (path === helper) {
+      if (!/import\.meta\.url/.test(stripComments(readFileSync(path, "utf-8")))) {
+        issues.push(`${label}: the project root must come from this file's own location (import.meta.url), not from the session`);
+      }
+      continue;
+    }
+    // Block comments are emptied but keep their newlines, so a reported line is the file's line.
+    const code = readFileSync(path, "utf-8").replace(/\/\*[\s\S]*?\*\//g, (block: string) => block.replace(/[^\n]/g, ""));
+    code.split("\n").map((line: string) => line.replace(/^\s*\/\/.*$/, "")).forEach((line: string, index: number) => {
+      if (sessionCwd.test(line)) {
+        issues.push(
+          `${label}:${index + 1}: derives a path from the session's working directory — use projectRoot / ` +
+            "toolPath() from lib/hook-project-root.ts; the root is the hook's own location, " +
+            "because a sibling project's session loads these hooks too (omp-hooks.md, Project root)",
+        );
+      }
+    });
+  }
+  if (!existsSync(helper)) issues.push("hooks/lib/hook-project-root.ts: missing — every hook needs the one project-root helper");
   return issues;
 }
 

@@ -50,14 +50,13 @@ import { printRuleHint } from "../lib/hook-rule-hint.ts";
 import { MUTATING_TOOLS } from "../lib/hook-mutating-tools.ts";
 import { touchesPath } from "../lib/hook-scope.ts";
 import { dormant, passLine } from "../lib/hook-dormancy.ts";
-import { resolveProjectRoot, WALK_EXCLUDES } from "../lib/hook-project-root.ts";
+import { projectRoot, WALK_EXCLUDES } from "../lib/hook-project-root.ts";
 import { APPLICATION, parseProject, plistArray, plistString, plistTrue, type Project } from "../lib/app-xcode-project.ts";
 
 // ============================================================
 // Constants
 // ============================================================
 
-const projectRoot = resolveProjectRoot();
 
 const MACOS_DIR = "app/macos";
 const PROJECT_FILE = "app/macos/Juice.xcodeproj/project.pbxproj";

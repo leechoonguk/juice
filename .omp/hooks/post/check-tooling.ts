@@ -7,7 +7,7 @@ import { buildSafeWarning, resetSuppression, wrapWarning } from "../lib/hook-saf
 import { guarded } from "../lib/hook-visibility.ts";
 import { printRuleHint } from "../lib/hook-rule-hint.ts";
 import { MUTATING_TOOLS } from "../lib/hook-mutating-tools.ts";
-import { resolveProjectRoot, WALK_EXCLUDES } from "../lib/hook-project-root.ts";
+import { projectRoot, WALK_EXCLUDES } from "../lib/hook-project-root.ts";
 
 /**
  * Check-Tooling Post Hook
@@ -22,7 +22,8 @@ import { resolveProjectRoot, WALK_EXCLUDES } from "../lib/hook-project-root.ts";
  *   2. Native sources (`.swift`, `.m`, `.mm`, `.h`) live under `app/macos/`,
  *      where the Xcode targets and `make swift-check` compile them.
  *   3. `.omp/hooks/` and `.omp/extensions/` are TypeScript only — hooks and
- *      libs import each other.
+ *      libs import each other — except `.omp/hooks/probes.json`, the pre-hook
+ *      verdict table `check-omp-probes` reads.
  *   4. Scripts live in `.omp/hooks/`, `.omp/extensions/` or `app/`; a root
  *      `scripts/`, `tools/`, `bin/` or `utils/` directory hides tooling from
  *      `check-omp-hooks` and from every make target.
@@ -34,7 +35,6 @@ import { resolveProjectRoot, WALK_EXCLUDES } from "../lib/hook-project-root.ts";
 // Constants
 // ============================================================
 
-const projectRoot = resolveProjectRoot();
 
 /** Script languages that need a toolchain this project does not have. */
 const FORBIDDEN_SCRIPTS = /\.(py|rb|sh|bash|zsh)$/;
@@ -98,7 +98,7 @@ export function checkToolingSync(): string[] {
     if (NATIVE_SOURCES.test(path) && !NATIVE_ROOTS.some((root) => path.startsWith(root))) {
       issues.push(`${path}: native source outside app/macos/ — no Xcode target or make swift-check compiles it`);
     }
-    if (/^\.omp\/(hooks|extensions)\//.test(path) && !path.endsWith(".ts")) {
+    if (/^\.omp\/(hooks|extensions)\//.test(path) && !path.endsWith(".ts") && path !== ".omp/hooks/probes.json") {
       issues.push(`${path}: .omp/hooks/ and .omp/extensions/ are TypeScript only — the modules import each other`);
     }
     if (ADHOC_SCRIPT_DIRS[path.split("/")[0]] === true) {

@@ -31,6 +31,16 @@ declare const process: {
   exit(code?: number): never;
 };
 
+/** `import.meta.url` is how a hook finds its own location (`lib/hook-project-root.ts`). */
+interface ImportMeta {
+  readonly url: string;
+}
+
+/** `new URL("../../..", import.meta.url)` resolves the project root from a hook's own location. */
+declare class URL {
+  constructor(input: string, base?: string);
+}
+
 // ============================================================
 // Host
 // ============================================================

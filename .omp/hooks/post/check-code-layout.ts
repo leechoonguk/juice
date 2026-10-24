@@ -14,6 +14,11 @@
  *   3. TypeScript class member order: fields → constructor → public → private
  *   4. whitespace: no trailing whitespace, no tab indent outside Makefile
  *      recipes, LF only, exactly one final newline
+ *   5. no edit flag left in a file: a line carrying the marker the write guard
+ *      accepts to let a replacement through (see EDIT_MARKER) is an instruction
+ *      to a tool, not content, in any text asset (`//`, `#`, `<!-- -->`, `*`)
+ *   6. no real Bluetooth address in any code surface: only the documented
+ *      placeholders (`AA:00:00:00:00:0n`, `00:00:00:00:00:00`) may be written
  *
  * Arrangement drift is invisible in review but makes every file a new puzzle,
  * so it is checked rather than asked for.
@@ -27,19 +32,35 @@ import { buildSafeWarning, resetSuppression, wrapWarning } from "../lib/hook-saf
 import { guarded } from "../lib/hook-visibility.ts";
 import { printRuleHint } from "../lib/hook-rule-hint.ts";
 import { MUTATING_TOOLS } from "../lib/hook-mutating-tools.ts";
-import { resolveProjectRoot, WALK_EXCLUDES } from "../lib/hook-project-root.ts";
+import { projectRoot, WALK_EXCLUDES } from "../lib/hook-project-root.ts";
 
 // ============================================================
 // Constants
 // ============================================================
 
-const projectRoot = resolveProjectRoot();
 
 /** Text assets held to the whitespace standard. */
 const HYGIENE_EXTENSIONS = [".ts", ".tsx", ".js", ".mjs", ".swift", ".m", ".h", ".kt", ".md", ".yml", ".yaml", ".css", ".html"];
 
 /** An intention parked in a comment is never found again. */
 const WORK_MARKER = /\b(TODO|FIXME|XXX|HACK)\b/;
+
+/**
+ * The edit flag the write guard (`strict-additive-writes`) accepts to let a
+ * replacement through. It belongs to one edit, never to the file: a marker that
+ * stays ships (one did, for a day). Spelled as a pattern so this source never
+ * carries the flag itself; a mention inside backticks or quotes is prose.
+ */
+const EDIT_MARKER = new RegExp(String.raw`(?<![\x60'"])(?:\/\/|#|<!--)\s*intent:\s*replace\b|^\s*\*\s*intent:\s*replace\b`, "i");
+
+/** A Bluetooth device address: six hex octets joined by `:` or `-`, not part of a longer hex run. */
+const BLUETOOTH_ADDRESS = /(?<![0-9A-Fa-f:-])[0-9A-Fa-f]{2}(?:[:-][0-9A-Fa-f]{2}){5}(?![0-9A-Fa-f:-])/g;
+
+/** The documented placeholders: the `AA:00:00:00:00:0n` family and the all-zero address. */
+const PLACEHOLDER_ADDRESS = /^(?:AA:00:00:00:00:0[0-9A-F]|00:00:00:00:00:00)$/;
+
+/** CoreTests holds the Swift tests and probes: code, and where real device identifiers leaked. */
+const CORE_TEST_ROOTS = ["Icon", "Probe", "Sources", "Tests", "WidgetSnapshots"].map((dir) => `app/macos/CoreTests/${dir}`);
 
 /**
  * Comment lines that are really statements — dead code pretending to be prose.
@@ -137,11 +158,15 @@ export function checkCodeLayoutSync(): string[] {
     issues.push(...checkScriptClassOrder(label, source));
   }
 
-  for (const path of NATIVE_ROOTS.flatMap((root) => walk(join(projectRoot, root), NATIVE_EXTENSIONS))) {
+  const nativePaths = NATIVE_ROOTS.flatMap((root) => walk(join(projectRoot, root), NATIVE_EXTENSIONS));
+  for (const path of nativePaths) {
     issues.push(...checkComments(relative(path), readFileSync(path, "utf-8"), COMMENTED_CODE_NATIVE));
   }
+  const coreTestPaths = CORE_TEST_ROOTS.flatMap((root) => walk(join(projectRoot, root), NATIVE_EXTENSIONS));
 
   issues.push(...checkWhitespaceHygiene());
+  issues.push(...checkEditMarkers([...hygieneFiles(), ...coreTestPaths]));
+  issues.push(...checkDeviceLiterals([...scriptPaths, ...nativePaths, ...coreTestPaths]));
 
   return issues;
 }
@@ -205,6 +230,41 @@ function checkWhitespaceHygiene(): string[] {
       }
       if (!isMakefile && /^\t/.test(line)) {
         issues.push(`${label}:${index + 1}: tab indentation — spaces everywhere but Makefile recipes`);
+      }
+    });
+  }
+  return issues;
+}
+
+/** Edit flags left behind in any text asset the project owns. */
+function checkEditMarkers(paths: string[]): string[] {
+  const issues: string[] = [];
+  for (const path of paths) {
+    readFileSync(path, "utf-8").split("\n").forEach((line: string, index: number) => {
+      if (!EDIT_MARKER.test(line)) return;
+      issues.push(
+        `${relative(path)}:${index + 1}: edit flag left in the file — it only lets one edit through a write guard; ` +
+          "delete the line (it is not content, and it ships)",
+      );
+    });
+  }
+  return issues;
+}
+
+/**
+ * A real device's address in a test, fixture or comment is hardcoding that
+ * reads as measurement. Only the documented placeholders may appear.
+ */
+function checkDeviceLiterals(paths: string[]): string[] {
+  const issues: string[] = [];
+  for (const path of paths) {
+    readFileSync(path, "utf-8").split("\n").forEach((line: string, index: number) => {
+      for (const match of line.matchAll(BLUETOOTH_ADDRESS)) {
+        if (PLACEHOLDER_ADDRESS.test(match[0].toUpperCase().replace(/-/g, ":"))) continue;
+        issues.push(
+          `${relative(path)}:${index + 1}: Bluetooth address literal ${match[0]} — a real device identifier ` +
+            "does not belong in the tree; use a placeholder (AA:00:00:00:00:0n) or read it from the device",
+        );
       }
     });
   }
