@@ -11,6 +11,7 @@ let mockDevices: BluetoothDevice[] = [];
 jest.mock('../src/native/androidBluetooth', () => ({
   PERMISSION_ERROR: 'E_PERMISSION',
   connectedDevices: async () => mockDevices,
+  readLeBattery: async () => null,
   notify: (...args: unknown[]) => mockNotify(...args),
   onBluetoothChanged: () => () => undefined,
 }));
@@ -22,7 +23,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 }));
 jest.mock('react-native-android-widget', () => ({
   FlexWidget: 'FlexWidget',
-  TextWidget: 'TextWidget',
+  SvgWidget: 'SvgWidget',
   registerWidgetTaskHandler: jest.fn(),
   requestWidgetUpdate: jest.fn(async () => undefined),
 }));
@@ -30,7 +31,7 @@ jest.mock('react-native-android-widget', () => ({
 const update = (): Promise<void> =>
   handleWidgetTask({
     widgetAction: 'WIDGET_UPDATE',
-    widgetInfo: {} as WidgetTaskHandlerProps['widgetInfo'],
+    widgetInfo: { width: 338, height: 158 } as WidgetTaskHandlerProps['widgetInfo'],
     renderWidget: () => undefined,
   });
 

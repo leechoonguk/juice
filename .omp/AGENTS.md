@@ -88,6 +88,7 @@ project directory.
 | Release (only when asked) | `make release bump=patch\|minor\|major` (`DRY_RUN=1` first); `make app-install` puts the published build in /Applications |
 | Windows/Linux desktop app (not in `verify`) | `make desktop-install`, `make desktop-start`, `make desktop-typecheck`, `make desktop-dist v=x.y.z` |
 | Android APK (not in `verify`) | `make android-apk v=x.y.z` (Android SDK + JDK 17) |
+| Android widget gallery preview | `make android-widget-preview` (macOS; after changing `app/mobile/src/widgetArt.ts`) |
 | One harness check | `make check-<name>` (listed by `make help`) |
 | The whole gate | `make verify` — runs once, at commit, through `make commit` |
 | Publish (only when asked) | `make commit m="type(scope): subject"`, `make push` |

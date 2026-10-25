@@ -5,6 +5,7 @@
   },
   "include": ["**/*.ts", "**/*.tsx"],
   // The Windows/Linux app and its tests type-check against DOM and Node types
-  // instead (app/desktop/tsconfig.json, `make desktop-typecheck`).
+  // instead (app/desktop/tsconfig.json, `make desktop-typecheck`), as does the Node script
+  // app/mobile/widgetPreview.mts, which `**/*.ts` leaves out.
   "exclude": ["**/node_modules", "**/Pods", "desktop", "__tests__/desktop.test.ts", "__tests__/desktopBattery.test.ts"]
 }

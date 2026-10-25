@@ -1,6 +1,6 @@
 import { Appearance, type ColorValue, Platform, PlatformColor } from 'react-native';
 
-/** Every colour the window or the Android widget names. */
+/** Every colour the window names. */
 export type Palette = Record<
   'label' | 'secondaryLabel' | 'tertiaryLabel' | 'track' | 'accent' | 'separator' | 'window' | 'card' | 'low',
   `#${string}`
@@ -8,8 +8,9 @@ export type Palette = Record<
 
 /**
  * A fixed palette per scheme, for the platforms with no named system colours
- * React Native can reach — Android and the Windows/Linux window — and for the
- * Android widget, which draws with plain hex values.
+ * React Native can reach — Android and the Windows/Linux window. The Android
+ * widget draws with its own colours, measured from the macOS widget
+ * (`app/mobile/src/widgetArt.ts`).
  */
 export const PALETTES: Record<'light' | 'dark', Palette> = {
   light: {

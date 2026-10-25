@@ -24,6 +24,7 @@
     "src/**/*.tsx",
     "build.ts",
     "../__tests__/desktop.test.ts",
-    "../__tests__/desktopBattery.test.ts"
+    "../__tests__/desktopBattery.test.ts",
+    "../mobile/widgetPreview.mts"
   ]
 }

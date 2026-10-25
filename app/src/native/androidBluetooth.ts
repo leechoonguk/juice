@@ -22,6 +22,7 @@ export const PERMISSION_ERROR = 'E_PERMISSION';
 
 interface JuiceBluetoothNative {
   connectedDevices(): Promise<BluetoothDevice[]>;
+  readLeBattery(address: string): Promise<number | null>;
   notify(id: string, title: string, body: string): void;
 }
 
@@ -36,6 +37,14 @@ function native(): JuiceBluetoothNative {
 /** Every bonded device with its connection state and battery level. */
 export function connectedDevices(): Promise<BluetoothDevice[]> {
   return native().connectedDevices();
+}
+
+/**
+ * The level an LE device keeps in its own Battery Service, read over a short GATT
+ * connection; null for a Classic device, one without the service, or no answer.
+ */
+export function readLeBattery(address: string): Promise<number | null> {
+  return native().readLeBattery(address);
 }
 
 /** Shows a low-battery notification on the `low-battery` channel. */

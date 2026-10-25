@@ -15,6 +15,7 @@ import {
   notify,
   onBluetoothChanged,
   PERMISSION_ERROR,
+  readLeBattery,
 } from '../../src/native/androidBluetooth';
 import type { BatterySnapshot, Permissions } from '../../src/native/juiceBattery';
 import {
@@ -180,8 +181,8 @@ async function readDevices(ask: boolean): Promise<DeviceBattery[]> {
     return [NO_PERMISSION];
   }
   try {
-    const devices = await connectedDevices();
-    return devices.filter(device => device.connected).map(toDevice);
+    const devices = (await connectedDevices()).filter(device => device.connected);
+    return await Promise.all(devices.map(withLeLevel));
   } catch (error) {
     if ((error as { code?: string }).code === PERMISSION_ERROR) {
       return [NO_PERMISSION];
@@ -212,14 +213,27 @@ async function requestNotifications(): Promise<void> {
   }
 }
 
-function toDevice(device: BluetoothDevice): DeviceBattery {
-  const level = percentage(device.level);
+/**
+ * A device with the level Android reports, or else the one its own Bluetooth LE
+ * Battery Service gives — what a mouse or keyboard over HID-over-GATT often keeps
+ * to itself on Android, as macOS reads it too.
+ */
+async function withLeLevel(device: BluetoothDevice): Promise<DeviceBattery> {
+  const reported = percentage(device.level);
+  if (reported !== null) {
+    return toDevice(device, reported, 'Android');
+  }
+  const le = percentage(await readLeBattery(device.address).catch(() => null));
+  return toDevice(device, le, 'LE');
+}
+
+function toDevice(device: BluetoothDevice, level: number | null, source: string): DeviceBattery {
   return {
     name: device.name,
     identifier: normalizeAddress(device.address),
     kind: deviceKind(classLabel(device.deviceClass), device.name),
-    readings: level === null ? [] : [{ part: null, percent: level, source: 'Android' }],
-    notes: level === null ? ['Android does not report this device’s battery.'] : [],
+    readings: level === null ? [] : [{ part: null, percent: level, source }],
+    notes: level === null ? ['Neither Android nor the device’s Bluetooth LE battery service reports a level.'] : [],
   };
 }
 

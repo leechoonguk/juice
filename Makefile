@@ -1,6 +1,6 @@
 .PHONY: help install pods start run build app-logs typecheck lint test swift-check swift-test battery-probe app-icon widget-snapshots demo verify clean commit push \
 	dist release unrelease app-install doctor hook-report \
-	desktop-install desktop-build desktop-start desktop-typecheck desktop-dist android-apk \
+	desktop-install desktop-build desktop-start desktop-typecheck desktop-dist android-apk android-widget-preview \
 	check-app-duplicate-blocks check-app-macos-project check-app-native-boundary check-code-layout check-makefiles \
 	check-omp-hooks check-omp-probes check-omp-rules check-omp-skills check-omp-types check-readme check-release check-tooling check-verify
 
@@ -123,6 +123,9 @@ desktop-dist: desktop-build ## Package this OS's installers into app/desktop/rel
 # through the Kotlin module JuiceBluetooth (app/android). `make start` serves it.
 android-apk: ## Build the Android APK, release-built and signed with the template's debug key (requires the Android SDK and JDK 17; v=x.y.z sets the version)
 	cd $(APP)/android && ./gradlew assembleRelease $(if $(v),-PjuiceVersionName=$(v))
+
+android-widget-preview: ## Draw the Android widget gallery's preview images, light and dark, from the widget's own drawing code (macOS: Quick Look and ffmpeg)
+	node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON app/mobile/widgetPreview.mts
 
 verify: lint typecheck test swift-check swift-test check-app-duplicate-blocks check-app-macos-project check-app-native-boundary check-code-layout check-makefiles check-omp-hooks check-omp-probes check-omp-rules check-omp-skills check-omp-types check-readme check-release check-tooling ## Run every gate that runs without Xcode
 

@@ -5,11 +5,13 @@ import type { BluetoothDevice } from '../src/native/androidBluetooth';
 
 const mockNotify = jest.fn();
 const mockConnectedDevices = jest.fn();
+const mockReadLeBattery = jest.fn();
 const mockStorage = new Map<string, string>();
 
 jest.mock('../src/native/androidBluetooth', () => ({
   PERMISSION_ERROR: 'E_PERMISSION',
   connectedDevices: () => mockConnectedDevices(),
+  readLeBattery: (address: string) => mockReadLeBattery(address),
   notify: (...args: unknown[]) => mockNotify(...args),
   onBluetoothChanged: () => () => undefined,
 }));
@@ -34,6 +36,7 @@ beforeEach(() => {
   mockStorage.clear();
   mockNotify.mockReset();
   mockConnectedDevices.mockReset();
+  mockReadLeBattery.mockReset().mockResolvedValue(null);
   jest.spyOn(Platform, 'Version', 'get').mockReturnValue(34);
   jest.spyOn(PermissionsAndroid, 'check').mockResolvedValue(true);
   jest.spyOn(PermissionsAndroid, 'request').mockResolvedValue(PermissionsAndroid.RESULTS.GRANTED);
@@ -57,9 +60,31 @@ test('connected devices come back lowest level first, unreadable ones last, with
     { name: 'Plain Gadget', percent: null, source: null, kind: 'other' },
   ]);
   expect(snapshot.devices[0].identifier).toBe('AA:00:00:00:00:03');
-  expect(snapshot.devices[2].note).toMatch(/does not report/);
+  expect(snapshot.devices[2].note).toMatch(/Neither Android nor .* reports a level/);
   expect(snapshot.threshold).toBe(20);
   expect(JSON.parse(mockStorage.get('juice.snapshot')!)).toEqual(snapshot);
+});
+
+test('a device Android reports no level for is read from its own LE battery service; one Android reports is not', async () => {
+  mockConnectedDevices.mockResolvedValue([device(1, 'Desk Mouse', null), device(2, 'Pocket Buds', 35)]);
+  mockReadLeBattery.mockImplementation(async (address: string) => (address === 'AA:00:00:00:00:01' ? 64 : null));
+
+  const snapshot = await refreshBatteries();
+
+  expect(snapshot.devices.map(({ name, percent, source }) => ({ name, percent, source }))).toEqual([
+    { name: 'Pocket Buds', percent: 35, source: 'Android' },
+    { name: 'Desk Mouse', percent: 64, source: 'LE' },
+  ]);
+  expect(mockReadLeBattery).toHaveBeenCalledTimes(1);
+});
+
+test('an LE read that fails leaves the device without a level, not the read failed', async () => {
+  mockConnectedDevices.mockResolvedValue([device(1, 'Desk Mouse', null)]);
+  mockReadLeBattery.mockRejectedValue(new Error('GATT error'));
+
+  const snapshot = await refreshBatteries();
+
+  expect(snapshot.devices[0]).toMatchObject({ name: 'Desk Mouse', percent: null });
 });
 
 test('a low device alerts once, and again only after it has charged clear of the threshold', async () => {

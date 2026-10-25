@@ -6,6 +6,9 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothGatt
+import android.bluetooth.BluetoothGattCallback
+import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.BroadcastReceiver
@@ -14,6 +17,9 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -22,7 +28,9 @@ import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter
 import com.uk.juice.MainActivity
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * What `mobile/src/juiceBattery.ts` reads: the bonded Bluetooth devices, which
@@ -33,6 +41,10 @@ import java.util.concurrent.ConcurrentHashMap
  * called, the public profile proxies and GATT list who is connected. The system
  * also broadcasts `BATTERY_LEVEL_CHANGED` while a device is connected; the last
  * level seen per address is kept and fills in where the direct call gives nothing.
+ *
+ * Some LE devices — mice and keyboards over HID-over-GATT — keep their level only in
+ * their own Battery Service, which some Android builds never read for the system.
+ * `readLeBattery` reads it over the app's own GATT connection, as the macOS app does.
  */
 class JuiceBluetoothModule(private val context: ReactApplicationContext) :
     ReactContextBaseJavaModule(context) {
@@ -111,6 +123,90 @@ class JuiceBluetoothModule(private val context: ReactApplicationContext) :
       promise.reject(PERMISSION_ERROR, error.message, error)
     } catch (error: Exception) {
       promise.reject("E_BLUETOOTH", error.message, error)
+    }
+  }
+
+  /**
+   * The level an LE device keeps in its Battery Service (0x180F, Battery Level 0x2A19), read over
+   * a short GATT connection of the app's own beside the system's; null when the device is Classic,
+   * has no such service or does not answer in time. A level is kept for [LE_LEVEL_TTL_MS], so the
+   * window's polls do not reconnect each time, and dropped when the device disconnects.
+   */
+  @ReactMethod
+  fun readLeBattery(address: String, promise: Promise) {
+    if (!canConnect()) {
+      promise.reject(PERMISSION_ERROR, "Bluetooth permission has not been granted")
+      return
+    }
+    val kept = leLevels[address]
+    if (kept != null && SystemClock.elapsedRealtime() - kept.second < LE_LEVEL_TTL_MS) {
+      promise.resolve(kept.first)
+      return
+    }
+    val device = runCatching { adapter()?.getRemoteDevice(address) }.getOrNull()
+    if (device == null || device.type == BluetoothDevice.DEVICE_TYPE_CLASSIC) {
+      promise.resolve(null)
+      return
+    }
+    val settled = AtomicBoolean(false)
+    val handler = Handler(Looper.getMainLooper())
+    var connection: BluetoothGatt? = null
+    lateinit var timeout: Runnable
+    fun finish(level: Int?) {
+      if (!settled.compareAndSet(false, true)) {
+        return
+      }
+      handler.removeCallbacks(timeout)
+      runCatching { connection?.close() }
+      if (level != null) {
+        leLevels[address] = level to SystemClock.elapsedRealtime()
+      }
+      promise.resolve(level)
+    }
+    timeout = Runnable { finish(null) }
+    val callback =
+        object : BluetoothGattCallback() {
+          override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+            when (newState) {
+              BluetoothProfile.STATE_CONNECTED -> if (!gatt.discoverServices()) finish(null)
+              BluetoothProfile.STATE_DISCONNECTED -> finish(null)
+            }
+          }
+
+          override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+            val level = gatt.getService(BATTERY_SERVICE)?.getCharacteristic(BATTERY_LEVEL)
+            if (level == null || !gatt.readCharacteristic(level)) {
+              finish(null)
+            }
+          }
+
+          override fun onCharacteristicRead(
+              gatt: BluetoothGatt,
+              characteristic: BluetoothGattCharacteristic,
+              value: ByteArray,
+              status: Int,
+          ) {
+            finish(batteryLevel(value, status))
+          }
+
+          @Deprecated("Called instead of the four-argument form before Android 13")
+          override fun onCharacteristicRead(
+              gatt: BluetoothGatt,
+              characteristic: BluetoothGattCharacteristic,
+              status: Int,
+          ) {
+            @Suppress("DEPRECATION") finish(batteryLevel(characteristic.value, status))
+          }
+        }
+    try {
+      connection = device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
+      if (connection == null) {
+        finish(null)
+      } else {
+        handler.postDelayed(timeout, GATT_TIMEOUT_MS)
+      }
+    } catch (error: SecurityException) {
+      finish(null)
     }
   }
 
@@ -249,6 +345,7 @@ class JuiceBluetoothModule(private val context: ReactApplicationContext) :
       else -> {
         seenConnected.remove(address)
         levels.remove(address)
+        leLevels.remove(address)
         event.putNull("level")
       }
     }
@@ -263,6 +360,10 @@ class JuiceBluetoothModule(private val context: ReactApplicationContext) :
       } else {
         @Suppress("DEPRECATION") getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
       }
+
+  /** The Battery Level characteristic's one byte, 0–100, or null when the read failed or is out of range. */
+  private fun batteryLevel(value: ByteArray?, status: Int): Int? =
+      if (status == BluetoothGatt.GATT_SUCCESS) value?.firstOrNull()?.toInt()?.and(0xFF)?.takeIf { it in 0..100 } else null
 
   /** A hidden `BluetoothDevice` call as an int (a boolean as 0 or 1), or null when it cannot be made. */
   private fun hiddenInt(device: BluetoothDevice, method: String): Int? =
@@ -288,7 +389,16 @@ class JuiceBluetoothModule(private val context: ReactApplicationContext) :
     /** A2DP, HEADSET and the hidden-constant INPUT_DEVICE (4), which lists keyboards and mice. */
     private val PROXY_PROFILES = listOf(BluetoothProfile.A2DP, BluetoothProfile.HEADSET, 4)
 
+    private val BATTERY_SERVICE: UUID = UUID.fromString("0000180f-0000-1000-8000-00805f9b34fb")
+    private val BATTERY_LEVEL: UUID = UUID.fromString("00002a19-0000-1000-8000-00805f9b34fb")
+    /** How long a device gets to connect and answer one Battery Level read. */
+    private const val GATT_TIMEOUT_MS = 8_000L
+    /** How long an LE level stands before the next read connects again. */
+    private const val LE_LEVEL_TTL_MS = 5 * 60_000L
+
     private val levels = ConcurrentHashMap<String, Int>()
+    /** The last LE Battery Service level per address, with when it was read. */
+    private val leLevels = ConcurrentHashMap<String, Pair<Int, Long>>()
     private val seenConnected: MutableSet<String> = ConcurrentHashMap.newKeySet()
   }
 }
