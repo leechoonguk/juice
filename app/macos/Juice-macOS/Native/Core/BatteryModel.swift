@@ -13,6 +13,9 @@ struct PairedRecord: Equatable {
   let services: [String]
   /// Battery levels the record keeps, by part (`main`, `left`, `case`).
   let battery: [String: Int]
+  /// The Bluetooth vendor and product IDs the record gives (`0x009E`), when it gives them.
+  var vendorID: Int? = nil
+  var productID: Int? = nil
 
   /// Whether a HID battery report is worth asking for.
   var isHID: Bool {
@@ -38,6 +41,21 @@ struct DeviceBattery: Equatable {
   var notes: [String] = []
 }
 
+/// One accessory battery macOS publishes as a power source (`pmset -g accps`):
+/// where it keeps the level of a headset that reports it over the hands-free
+/// profile, which the system record does not carry.
+struct AccessorySource: Equatable {
+  let name: String
+  let vendorID: Int?
+  let productID: Int?
+  /// `left`, `right`, `case` for a device with several batteries; nil for one.
+  let part: String?
+  let percent: Int
+  /// The Bluetooth address when the source's `Accessory Identifier` is one (a
+  /// trackpad's is, measured); earbuds give a UUID instead, so this is nil.
+  var address: String? = nil
+}
+
 enum SystemRecord {
   /// The paired identities in `system_profiler SPBluetoothDataType -json`.
   static func parse(_ json: Data) -> [PairedRecord] {
@@ -51,20 +69,37 @@ enum SystemRecord {
           guard let fields = value as? [String: Any], let address = fields["device_address"] as? String else { continue }
           let services = (fields["device_services"] as? String).map(serviceList) ?? []
           let kind = fields["device_minorType"] as? String
-          records.append(
-            PairedRecord(
-              name: name, address: normalizeAddress(address), isConnected: connected,
-              transport: services.contains("BLE") ? "LE" : (kind != nil ? "Classic" : "?"), kind: kind,
-              services: services, battery: Battery.systemLevels(fields)))
+          var record = PairedRecord(
+            name: name, address: normalizeAddress(address), isConnected: connected,
+            transport: services.contains("BLE") ? "LE" : (kind != nil ? "Classic" : "?"), kind: kind,
+            services: services, battery: Battery.systemLevels(fields))
+          record.vendorID = hexNumber(fields["device_vendorID"])
+          record.productID = hexNumber(fields["device_productID"])
+          records.append(record)
         }
       }
     }
     return records
   }
 
+  /// `0x009E` → 158; nil for anything else.
+  static func hexNumber(_ value: Any?) -> Int? {
+    guard let text = value as? String, text.lowercased().hasPrefix("0x") else { return nil }
+    return Int(text.dropFirst(2), radix: 16)
+  }
+
   /// `aa-00-00-00-00-01` and `AA:00:00:00:00:01` are the same address.
   static func normalizeAddress(_ address: String) -> String {
     address.uppercased().replacingOccurrences(of: "-", with: ":")
+  }
+
+  /// `text` as a normalized Bluetooth address when it is one — six hex pairs —
+  /// and nil for anything else, such as a UUID.
+  static func address(_ text: String) -> String? {
+    let normalized = normalizeAddress(text)
+    let pairs = normalized.split(separator: ":", omittingEmptySubsequences: false)
+    guard pairs.count == 6, pairs.allSatisfy({ $0.count == 2 && $0.allSatisfy(\.isHexDigit) }) else { return nil }
+    return normalized
   }
 
   /// `0x400000 < BLE >` → `["BLE"]`.
@@ -87,6 +122,50 @@ enum Battery {
       levels[String(key.dropFirst(prefix.count)).lowercased()] = percent
     }
     return levels
+  }
+
+  /// The Bluetooth accessory batteries among the power source descriptions
+  /// `IOPSCopyPowerSourcesByType` returns, over Classic (`Bluetooth`) or LE
+  /// (`Bluetooth LE`). A `Part Identifier` of `Single` is one battery. Earbuds
+  /// come as one `Combined` source whose `Combined Parts` hold each part
+  /// (`Left`, `Right`, `Case`); the parts are read and the combined figure, which
+  /// would hide them, is not.
+  static func accessorySources(_ descriptions: [[String: Any]]) -> [AccessorySource] {
+    descriptions.flatMap { description -> [AccessorySource] in
+      guard description["Type"] as? String == "Accessory Source",
+        (description["Transport Type"] as? String)?.hasPrefix("Bluetooth") == true
+      else { return [] }
+      if let parts = description["Combined Parts"] as? [[String: Any]] {
+        return accessorySources(parts)
+      }
+      guard let name = description["Name"] as? String,
+        let current = description["Current Capacity"] as? Int,
+        let maximum = description["Max Capacity"] as? Int, maximum > 0
+      else { return [] }
+      let percent = Int((Double(current) * 100 / Double(maximum)).rounded())
+      let part = (description["Part Identifier"] as? String).map { $0.lowercased() }
+      guard (0...100).contains(percent), part != "combined" else { return [] }
+      var source = AccessorySource(
+        name: name, vendorID: description["Vendor ID"] as? Int, productID: description["Product ID"] as? Int,
+        part: part == nil || part == "single" ? nil : part, percent: percent)
+      source.address = (description["Accessory Identifier"] as? String).flatMap(SystemRecord.address)
+      return [source]
+    }
+  }
+
+  /// The power-source readings that belong to `record`. A source that carries an
+  /// address belongs to the device with that address and no other. Without one,
+  /// it needs the same name — or, for earbuds' case, the name macOS gives it
+  /// (`AirPods Pro Case`, measured) — and the same vendor and product where both
+  /// sides give them.
+  static func accessoryReadings(for record: PairedRecord, in sources: [AccessorySource]) -> [BatteryReading] {
+    sources.filter { source in
+      if let address = source.address { return address == record.address }
+      return (source.name == record.name || (source.part == "case" && source.name == "\(record.name) Case"))
+        && (source.vendorID == nil || record.vendorID == nil || source.vendorID == record.vendorID)
+        && (source.productID == nil || record.productID == nil || source.productID == record.productID)
+    }
+    .map { BatteryReading(part: $0.part, percent: $0.percent, source: "system") }
   }
 
   /// An LE Battery Level (2A19) value: one byte, 0–100.

@@ -3,11 +3,13 @@ import Foundation
 import IOBluetooth
 import IOKit
 import IOKit.hid
+import IOKit.ps
 
 /// Reads every connected device's battery by every path macOS offers, in order:
-/// the system's record, the level the system keeps in the I/O Registry, the HID
-/// battery report a Classic device's descriptor declares, and LE Battery Level
-/// (2A19). Each device notes why a path that gave nothing gave nothing.
+/// the system's record, the accessory power sources macOS publishes, the level
+/// the system keeps in the I/O Registry, the HID battery report a Classic
+/// device's descriptor declares, and LE Battery Level (2A19). Each device notes
+/// why a path that gave nothing gave nothing.
 ///
 /// Blocking work (`system_profiler`, HID reports) runs on the caller's queue;
 /// call it off the main thread. The LE reads finish on their own queue.
@@ -26,11 +28,15 @@ final class BatteryReader {
   func read(completion: @escaping ([DeviceBattery]) -> Void) {
     let records = Self.systemRecords().filter(\.isConnected)
     let registry = Self.registryLevels()
+    let accessories = Battery.accessorySources(Self.powerSourceDescriptions())
     var devices: [DeviceBattery] = records.map { record in
       var device = DeviceBattery(
         name: record.name, identifier: record.address, kind: Battery.kind(label: record.kind, name: record.name))
       for (part, percent) in record.battery.sorted(by: { $0.key < $1.key }) {
         device.readings.append(BatteryReading(part: part == "main" ? nil : part, percent: percent, source: "system"))
+      }
+      if device.readings.isEmpty {
+        device.readings = Battery.accessoryReadings(for: record, in: accessories)
       }
       if device.readings.isEmpty, let percent = registry[record.address] {
         device.readings.append(BatteryReading(part: nil, percent: percent, source: "system"))
@@ -87,6 +93,21 @@ final class BatteryReader {
       entry = IOIteratorNext(iterator)
     }
     return levels
+  }
+
+  /// Every power source description macOS publishes, accessories included —
+  /// what `pmset -g accps` lists. A headset that reports its level over the
+  /// hands-free profile has it here only. `IOPSCopyPowerSourcesInfo` returns the
+  /// Mac's own battery alone, so the call is `IOPSCopyPowerSourcesByType` with
+  /// type 0 (all sources), which IOKit exports but does not declare; looked up
+  /// at run time, a macOS without it simply gives no accessory levels.
+  static func powerSourceDescriptions() -> [[String: Any]] {
+    typealias CopyByType = @convention(c) (Int32) -> Unmanaged<CFTypeRef>?
+    guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "IOPSCopyPowerSourcesByType"),
+      let blob = unsafeBitCast(symbol, to: CopyByType.self)(0)?.takeRetainedValue()
+    else { return [] }
+    let sources = IOPSCopyPowerSourcesList(blob)?.takeRetainedValue() as? [CFTypeRef] ?? []
+    return sources.compactMap { IOPSGetPowerSourceDescription(blob, $0)?.takeUnretainedValue() as? [String: Any] }
   }
 
   private static func property(_ entry: io_registry_entry_t, _ key: String) -> Any? {

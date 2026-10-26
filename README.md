@@ -5,11 +5,12 @@ mouse, trackpad, headphones, phone — in the menu bar, in a widget, and in a
 notification before one runs out.
 
 <p align="center">
-  <img src="docs/demo.gif" width="760" alt="Juice's widgets as a keyboard drains past the 20% threshold — its ring turns red and a warning appears — and headphones connect">
+  <img src="docs/demo.gif" width="680" alt="Juice's window: the battery list, Refresh, and the alert threshold stepped up — a keyboard drains below 20% and turns red, a phone connects and is judged against the new threshold, headphones disconnect">
 </p>
 
-<sub>The widget's own views over a scripted desk of made-up devices: a keyboard
-drains past the threshold, then headphones connect. `make demo` records it.</sub>
+<sub>The app window over a scripted desk of made-up devices: a keyboard drains
+below the threshold and turns red, then the threshold is stepped up and the rows
+are judged again. `make demo` records it.</sub>
 
 ## What It Does
 
@@ -25,6 +26,8 @@ drains past the threshold, then headphones connect. `make demo` records it.</sub
   ![Juice widgets, light](docs/widgets-light.png)
 
   ![Juice widgets, dark](docs/widgets-dark.png)
+
+  ![Juice widgets as a keyboard drains past the threshold and headphones connect](docs/widgets.gif)
 - **A notification at your threshold.** When a device falls to the threshold
   (20% by default, 5–95% in the window) Juice sends one notification for it.
   That device alerts again only after it has charged 5 points above the
@@ -92,7 +95,7 @@ every target. You need Node 22.18 or newer, Xcode and CocoaPods.
 | Build only | `make build` |
 | Read your devices' batteries from the terminal | `make battery-probe` |
 | Check while working | `make lint`, `make typecheck`, `make test`, `make swift-check`, `make swift-test` |
-| Re-render the widget pictures and the demo above | `make widget-snapshots`, `make demo` (needs ffmpeg) |
+| Re-render the widget pictures, and re-record the window and widget GIFs | `make widget-snapshots`, `make demo` (needs ffmpeg and `make desktop-install`) |
 | Windows or Linux desktop app | `make desktop-install`, then `make desktop-start` (`make desktop-dist v=x.y.z` packages this OS's installers) |
 | Android APK | `make android-apk v=x.y.z` (needs the Android SDK and JDK 17) |
 | The whole gate | `make verify` |

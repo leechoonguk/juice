@@ -99,8 +99,9 @@ app-icon: ## Render the app icon from its Swift drawing into the asset catalog (
 widget-snapshots: ## Render docs/widgets-light.png and docs/widgets-dark.png from the widget's own views (requires macOS)
 	swift run --package-path $(MACOS)/CoreTests juice-widget-snapshots docs
 
-demo: ## Record docs/demo.gif — the widget's own views over a scripted desk of made-up devices (requires macOS and ffmpeg)
-	swift run --package-path $(MACOS)/CoreTests juice-widget-snapshots --demo docs/demo.gif
+demo: ## Record docs/widgets.gif and docs/demo.gif — the widgets over a desk of made-up devices, then the desktop window on the same kind of desk (requires macOS, ffmpeg and `make desktop-install`)
+	swift run --package-path $(MACOS)/CoreTests juice-widget-snapshots --demo docs/widgets.gif
+	node app/desktop/demo.ts docs/demo.gif
 
 # Windows and Linux (rule://root-makefile). Electron and electron-builder run on
 # any OS, but an installer is built for the OS it runs on — CI builds both.
@@ -198,7 +199,7 @@ check-omp-skills: ## Check the skills catalog against the discovered SKILL.md fi
 check-omp-types: ## Type-check the harness TypeScript (.omp/**/*.ts)
 	node .omp/hooks/post/check-omp-types.ts
 
-check-readme: ## Check the README's links, make targets and docs/ pictures
+check-readme: ## Check the README's links, make targets and docs/ pictures, and that the demo desk reaches no shipped build
 	node .omp/hooks/post/check-readme.ts
 
 check-release: ## Check the update feed, Sparkle keys, version and release asset names agree

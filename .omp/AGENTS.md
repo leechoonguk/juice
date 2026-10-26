@@ -26,8 +26,8 @@ the release's APK on Android (rule://release).
 | Android | Kotlin `JuiceBluetooth` module + home-screen widget (react-native-android-widget) under `app/android/`, `app/mobile/src/` |
 
 The layers between those parts are rule://app-native-boundary. `README.md` at
-the project root is the front page; its widget pictures in `docs/` are made from
-the widget's own views (rule://root-readme).
+the project root is the front page; its pictures in `docs/` are made from the
+widget's own views and the desktop window (rule://root-readme).
 
 The `make verify` gate runs without Xcode; `make build`, `make run` and
 `make pods` need it (rule://app-macos-project, "Running on This
@@ -39,7 +39,7 @@ tests it.
 ```
 Makefile                      the only entry point (rule://root-makefile)
 README.md                     the front page, kept true to the code (rule://root-readme)
-docs/                         the README's pictures: widgets-light.png, widgets-dark.png (`make widget-snapshots`)
+docs/                         the README's pictures: demo.gif, widgets.gif (`make demo`), widgets-light.png, widgets-dark.png (`make widget-snapshots`)
 app/                          React Native + react-native-macos, TypeScript, npm
   App.tsx, index.js           entry points
   metro.config.js             Metro defaults + the Android swaps of the native wrappers
@@ -84,7 +84,7 @@ project directory.
 | Read batteries without the app | `make battery-probe` (every connected device, once, from the terminal) |
 | The Mac's state (copies, widget registration, signing, Metro) | `make doctor` (read-only); `make run` drops stray copies and refuses to start Debug without Metro |
 | App icon | `make app-icon` (rendered from `CoreTests/Icon`) |
-| The README's pictures | `make widget-snapshots` (macOS) |
+| The README's pictures | `make widget-snapshots`, `make demo` (macOS, ffmpeg, `make desktop-install`) |
 | Release (only when asked) | `make release bump=patch\|minor\|major` (`DRY_RUN=1` first); `make app-install` puts the published build in /Applications |
 | Windows/Linux desktop app (not in `verify`) | `make desktop-install`, `make desktop-start`, `make desktop-typecheck`, `make desktop-dist v=x.y.z` |
 | Android APK (not in `verify`) | `make android-apk v=x.y.z` (Android SDK + JDK 17) |

@@ -24,15 +24,16 @@ export const PALETTES: Record<'light' | 'dark', Palette> = {
     card: '#ffffff',
     low: '#d70015',
   },
+  /** Measured from the macOS window in dark mode: its rows sit flat on the window, as AppKit draws them. */
   dark: {
     label: '#f5f5f7',
     secondaryLabel: '#a1a1a6',
     tertiaryLabel: '#636366',
-    track: '#48484a',
-    accent: '#3b8cff',
+    track: '#343434',
+    accent: '#007aff',
     separator: '#3a3a3c',
-    window: '#1c1c1e',
-    card: '#2c2c2e',
+    window: '#1e1e1e',
+    card: '#1e1e1e',
     low: '#ff453a',
   },
 };

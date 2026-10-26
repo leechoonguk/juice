@@ -84,8 +84,17 @@ const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const NOTE_EXCLUDE = /^(docs|test|chore\(harness\))(\(|:)/;
 
 /** What draws the README's pictures, and the pictures `make demo` / `make widget-snapshots` make from it. */
-const DRAWING = ["app/macos/JuiceWidget", "app/macos/Shared", "app/macos/CoreTests/WidgetSnapshots/main.swift"];
-const PICTURES = ["docs/demo.gif", "docs/widgets-light.png", "docs/widgets-dark.png"];
+const DRAWING = [
+  "app/macos/JuiceWidget",
+  "app/macos/Shared",
+  "app/macos/CoreTests/WidgetSnapshots/main.swift",
+  "app/src/screens",
+  "app/src/theme.ts",
+  "app/desktop/src/renderer",
+  "app/desktop/src/demo",
+  "app/desktop/demo.ts",
+];
+const PICTURES = ["docs/demo.gif", "docs/widgets.gif", "docs/widgets-light.png", "docs/widgets-dark.png"];
 
 const root = projectRoot;
 
@@ -342,8 +351,8 @@ function staleDemoNote(last: string): void {
   const changed = (paths: string[]): boolean =>
     spawnSync("git", ["diff", "--quiet", last, "HEAD", "--", ...paths], { cwd: root }).status === 1;
   if (changed(DRAWING) && !changed(PICTURES)) {
-    say(`note: the widget or the demo script changed since ${last}, docs/demo.gif and the widget pictures did not;`);
-    say("      if the widget looks different now, run make demo and make widget-snapshots, look at them, and commit them first");
+    say(`note: the widget, the window or a demo script changed since ${last}, docs/demo.gif and the widget pictures did not;`);
+    say("      if the widget or the window looks different now, run make demo and make widget-snapshots, look at them, and commit them first");
   }
 }
 

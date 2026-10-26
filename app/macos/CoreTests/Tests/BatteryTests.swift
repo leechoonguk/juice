@@ -13,6 +13,7 @@ private let record = Data(
     "device_connected":[
       {"Board":{"device_address":"aa-00-00-00-00-01","device_minorType":"Keyboard","device_services":"0x800020 < HID ACL >"}},
       {"Buds":{"device_address":"AA:00:00:00:00:02","device_minorType":"Headphones",
+               "device_vendorID":"0x009E","device_productID":"0x4039",
                "device_batteryLevelLeft":"90%","device_batteryLevelRight":"88%","device_batteryLevelCase":"40 %"}},
       {"Speaker [LE]":{"device_address":"AA:00:00:00:00:03","device_services":"0x400000 < BLE >"}}],
     "device_not_connected":[
@@ -27,6 +28,8 @@ private let record = Data(
   #expect(byName["Board"]?.address == "AA:00:00:00:00:01")
   #expect(byName["Board"]?.isHID == true)
   #expect(byName["Buds"]?.battery == ["left": 90, "right": 88, "case": 40])
+  #expect(byName["Buds"]?.vendorID == 0x009E)
+  #expect(byName["Buds"]?.productID == 0x4039)
   #expect(byName["Speaker [LE]"]?.transport == "LE")
   #expect(byName["Mouse"]?.isConnected == false)
   #expect(SystemRecord.parse(Data("{}".utf8)).isEmpty)
@@ -34,6 +37,104 @@ private let record = Data(
 
 @Test func aBatteryFieldThatIsNotAPercentageIsDropped() {
   #expect(Battery.systemLevels(["device_batteryLevelMain": "unknown", "device_batteryLevelLeft": "140%"]).isEmpty)
+}
+
+// MARK: - Accessory power sources
+
+/// A power source description as `IOPSCopyPowerSourcesByType` gives it.
+private func powerSource(
+  _ name: String, _ current: Int, max: Int = 100, part: String = "Single", type: String = "Accessory Source",
+  transport: String = "Bluetooth", vendor: Int? = 0x009E, product: Int? = 0x4039
+) -> [String: Any] {
+  var description: [String: Any] = [
+    "Name": name, "Current Capacity": current, "Max Capacity": max, "Part Identifier": part,
+    "Type": type, "Transport Type": transport,
+  ]
+  description["Vendor ID"] = vendor
+  description["Product ID"] = product
+  return description
+}
+
+@Test func aHeadsetTheRecordGivesNoLevelForIsReadFromItsPowerSource() {
+  let sources = Battery.accessorySources([
+    powerSource("Cans", 90),
+    powerSource("Buds", 45, part: "Left"), powerSource("Buds", 30, part: "Case"),
+    powerSource("InternalBattery-0", 80, type: "InternalBattery", transport: "Internal"),
+    powerSource("Dongle Pad", 40, transport: "USB"),
+  ])
+  #expect(sources.map(\.name) == ["Cans", "Buds", "Buds"])
+  var cans = PairedRecord(
+    name: "Cans", address: "AA:00:00:00:00:05", isConnected: true, transport: "Classic", kind: "Headphones",
+    services: ["HFP", "A2DP"], battery: [:])
+  cans.vendorID = 0x009E
+  cans.productID = 0x4039
+  #expect(Battery.accessoryReadings(for: cans, in: sources) == [BatteryReading(part: nil, percent: 90, source: "system")])
+  let buds = PairedRecord(
+    name: "Buds", address: "AA:00:00:00:00:02", isConnected: true, transport: "Classic", kind: "Headphones",
+    services: [], battery: [:])
+  #expect(Battery.accessoryReadings(for: buds, in: sources).map(\.part) == ["left", "case"])
+}
+
+/// The shape macOS publishes earbuds in (measured): one `Combined` LE source
+/// whose `Combined Parts` carry each bud.
+@Test func earbudsComeAsOneCombinedSourceAndAreReadPartByPart() {
+  var combined = powerSource("Buds", 70, part: "Combined", transport: "Bluetooth LE", vendor: 0x004C, product: 0x200E)
+  combined["Combined Parts"] = [
+    powerSource("Buds", 70, part: "Left", transport: "Bluetooth LE", vendor: 0x004C, product: 0x200E),
+    powerSource("Buds", 95, part: "Right", transport: "Bluetooth LE", vendor: 0x004C, product: 0x200E),
+  ]
+  let sources = Battery.accessorySources([combined])
+  #expect(sources.map(\.part) == ["left", "right"])
+  #expect(sources.map(\.percent) == [70, 95])
+  #expect(Battery.accessorySources([powerSource("Buds", 70, part: "Combined", transport: "Bluetooth LE")]).isEmpty)
+}
+
+/// With the case open macOS lists each part on its own, the case under a name
+/// of its own (measured: `AirPods Pro Case`, over LE while the buds use Classic).
+@Test func anOpenCaseIsReadUnderItsOwnNameAsTheDevicesCase() {
+  let sources = Battery.accessorySources([
+    powerSource("Buds", 90, part: "Left", vendor: 0x004C, product: 0x200E),
+    powerSource("Buds Case", 60, part: "Case", transport: "Bluetooth LE", vendor: 0x004C, product: 0x200E),
+    powerSource("Buds", 85, part: "Right", vendor: 0x004C, product: 0x200E),
+    powerSource("Other Case", 10, part: "Case", transport: "Bluetooth LE", vendor: 0x004C, product: 0x200E),
+  ])
+  let buds = PairedRecord(
+    name: "Buds", address: "AA:00:00:00:00:02", isConnected: true, transport: "Classic", kind: "Headphones",
+    services: [], battery: [:])
+  let readings = Battery.accessoryReadings(for: buds, in: sources)
+  #expect(readings.map(\.part) == ["left", "case", "right"])
+  #expect(readings.map(\.percent) == [90, 60, 85])
+}
+
+/// Two devices of one model and one name: a source carrying an address (a
+/// trackpad's does, measured) goes to that device alone; a UUID is no address.
+@Test func aSourceWithAnAddressBelongsToThatDeviceAlone() {
+  var mine = powerSource("Pad", 68, vendor: 0x004C, product: 0x0265)
+  mine["Accessory Identifier"] = "aa-00-00-00-00-07"
+  var theirs = powerSource("Pad", 12, vendor: 0x004C, product: 0x0265)
+  theirs["Accessory Identifier"] = "AA:00:00:00:00:08"
+  var buds = powerSource("Buds", 50, vendor: 0x004C, product: 0x200E)
+  buds["Accessory Identifier"] = "00000000-0000-0000-0000-000000000001"
+  let sources = Battery.accessorySources([mine, theirs, buds])
+  #expect(sources.map(\.address) == ["AA:00:00:00:00:07", "AA:00:00:00:00:08", nil])
+  let pad = PairedRecord(
+    name: "Pad", address: "AA:00:00:00:00:07", isConnected: true, transport: "Classic", kind: "Trackpad",
+    services: [], battery: [:])
+  #expect(Battery.accessoryReadings(for: pad, in: sources).map(\.percent) == [68])
+}
+
+@Test func aPowerSourceOfTheSameNameButAnotherProductIsNotThatDevice() {
+  var other = PairedRecord(
+    name: "Cans", address: "AA:00:00:00:00:06", isConnected: true, transport: "Classic", kind: "Headphones",
+    services: [], battery: [:])
+  other.vendorID = 0x009E
+  other.productID = 0x1111
+  #expect(Battery.accessoryReadings(for: other, in: Battery.accessorySources([powerSource("Cans", 90)])).isEmpty)
+}
+
+@Test func aCapacityIsScaledToItsMaximumAndAnImpossibleOneDropped() {
+  let sources = Battery.accessorySources([powerSource("Half", 50, max: 200), powerSource("Over", 130), powerSource("Zero", 5, max: 0)])
+  #expect(sources.map(\.percent) == [25])
 }
 
 @Test func anLEBatteryLevelIsOneByteUpToAHundred() {

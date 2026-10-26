@@ -9,16 +9,21 @@
  *   2. Every `make <target>` the README writes as code is a Makefile target.
  *   3. `docs/` holds only what the README shows, and the README shows pictures
  *      only from `docs/` — a picture elsewhere has no command that regenerates it.
- *   4. The README opens with the moving demo: `docs/demo.gif` is shown before its
- *      first `##` section, and the Makefile's `demo` target is what writes it. A
- *      still alone tells a visitor what the widget looks like, not what it does —
- *      levels falling, a device turning red at the threshold, one connecting.
+ *   4. The README opens with the window's moving demo: `docs/demo.gif` is shown
+ *      before its first `##` section, `docs/widgets.gif` is shown too, and the
+ *      Makefile's `demo` target writes both. A still alone tells a visitor what
+ *      Juice looks like, not what it does — levels falling, a device turning red
+ *      at the threshold, one connecting.
+ *   5. The demo desk (`app/desktop/src/demo/`) is bundled only by
+ *      `app/desktop/build.ts` under `JUICE_DEMO`, imported by no app source, and
+ *      `JUICE_DEMO` is set by no Makefile recipe or workflow — only by the
+ *      recorder — so no shipped build carries made-up devices.
  *
  * Reads files only; dormant (`absent`) without `README.md`.
  */
 import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
 // @ts-expect-error — Node builtin, not project-compiled
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 // @ts-expect-error — Node builtin, not project-compiled
 import { join, normalize } from "node:path";
 import { buildSafeWarning, resetSuppression, wrapWarning } from "../lib/hook-safety-guard.ts";
@@ -37,7 +42,18 @@ import { projectRoot, WALK_EXCLUDES } from "../lib/hook-project-root.ts";
 const README = "README.md";
 const DOCS = "docs";
 const DEMO = `${DOCS}/demo.gif`;
-const SCOPE = [README, `${DOCS}/`, "Makefile", ".github/workflows/"];
+const WIDGETS_GIF = `${DOCS}/widgets.gif`;
+const DEMO_DIR = "app/desktop/src/demo";
+const DEMO_BUNDLER = "app/desktop/build.ts";
+const DEMO_RECORDER = "app/desktop/demo.ts";
+const SCOPE = [README, `${DOCS}/`, DEMO_DIR, DEMO_BUNDLER, DEMO_RECORDER, "Makefile", ".github/workflows/"];
+
+/** App sources that could import the demo desk; tests may, to test it. */
+const SOURCE_DIRS = ["app/src", "app/desktop/src", "app/mobile/src"];
+const SOURCE_FILES = ["app/App.tsx", "app/index.js", "app/metro.config.js"];
+const SCRIPT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx"];
+/** Where a build is configured: none may switch the demo desk on. */
+const BUILD_CONFIG = ["Makefile", ".github/workflows"];
 
 const MARKDOWN_LINK = /!?\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
 const HTML_SOURCE = /\b(?:src|srcset|href)="([^"]+)"/g;
@@ -81,23 +97,63 @@ export function checkReadmeSync(): string[] {
   issues.push(...checkMakeTargets(readme));
   issues.push(...checkDocs(references));
   issues.push(...checkDemo(readme));
+  issues.push(...checkDemoIsolation());
   return issues;
 }
 
-/** Claim 4: the front page moves, and one command makes it move. */
+/** Claim 4: the front page moves, and one command makes every moving picture. */
 function checkDemo(readme: string): string[] {
   const issues: string[] = [];
   const firstSection = readme.search(/^##\s/m);
   const opening = firstSection === -1 ? readme : readme.slice(0, firstSection);
   if (!referencesOf(opening).includes(DEMO)) {
-    issues.push(`${README}: does not show ${DEMO} before its first section — the front page opens with the moving demo \`make demo\` records`);
+    issues.push(`${README}: does not show ${DEMO} before its first section — the front page opens with the window demo \`make demo\` records`);
+  }
+  if (!referencesOf(readme).includes(WIDGETS_GIF)) {
+    issues.push(`${README}: does not show ${WIDGETS_GIF} — the widgets' moving picture belongs beside their stills`);
   }
   const makefile = existsSync(join(projectRoot, "Makefile")) ? readFileSync(join(projectRoot, "Makefile"), "utf-8") : "";
   const recipe = /^demo:[^\n]*\n((?:\t[^\n]*\n?)+)/m.exec(makefile)?.[1] ?? null;
   if (recipe === null) {
-    issues.push(`Makefile: no \`demo\` target — ${DEMO} needs one command that re-records it from the app's own views`);
-  } else if (!recipe.includes(DEMO)) {
-    issues.push(`Makefile: the \`demo\` recipe does not write ${DEMO} — the README would show a recording no command makes`);
+    issues.push(`Makefile: no \`demo\` target — ${DEMO} and ${WIDGETS_GIF} need one command that re-records them from the app's own views`);
+  } else {
+    for (const gif of [DEMO, WIDGETS_GIF]) {
+      if (!recipe.includes(gif)) {
+        issues.push(`Makefile: the \`demo\` recipe does not write ${gif} — the README would show a recording no command makes`);
+      }
+    }
+  }
+  return issues;
+}
+
+/**
+ * Claim 5: the demo desk (`app/desktop/src/demo/`) reaches no shipped build —
+ * `build.ts` bundles it only behind `process.env.JUICE_DEMO === '1'`, no app
+ * source imports it, and no Makefile recipe or workflow sets `JUICE_DEMO`;
+ * only the recorder does.
+ */
+function checkDemoIsolation(): string[] {
+  if (!existsSync(join(projectRoot, DEMO_DIR))) return [];
+  const issues: string[] = [];
+  const bundler = existsSync(join(projectRoot, DEMO_BUNDLER)) ? readFileSync(join(projectRoot, DEMO_BUNDLER), "utf-8") : "";
+  if (!bundler.includes("'demo'") || !/process\.env\.JUICE_DEMO\s*===\s*'1'/.test(bundler)) {
+    issues.push(`${DEMO_BUNDLER}: does not bundle ${DEMO_DIR}/ behind \`process.env.JUICE_DEMO === '1'\` — the demo desk has no one gate, or no way in`);
+  }
+  const sources = [...SOURCE_DIRS.flatMap((dir) => walk(dir, SCRIPT_EXTENSIONS)), ...SOURCE_FILES.filter((file) => existsSync(join(projectRoot, file)))];
+  for (const file of sources) {
+    if (file.startsWith(`${DEMO_DIR}/`)) continue;
+    const text = readFileSync(join(projectRoot, file), "utf-8");
+    if (/from\s+'[^']*\/demo\/[^']*'|require\('[^']*\/demo\//.test(text)) {
+      issues.push(`${file}: imports the demo desk — every build would ship it; only ${DEMO_BUNDLER} swaps it in, for \`make demo\``);
+    }
+  }
+  for (const config of BUILD_CONFIG) {
+    const configured = existsSync(join(projectRoot, config)) && statSync(join(projectRoot, config)).isDirectory() ? walk(config, [".yml", ".yaml"]) : [config];
+    for (const file of configured) {
+      if (existsSync(join(projectRoot, file)) && readFileSync(join(projectRoot, file), "utf-8").includes("JUICE_DEMO")) {
+        issues.push(`${file}: sets JUICE_DEMO — a build it configures would carry the demo desk; only ${DEMO_RECORDER} sets it`);
+      }
+    }
   }
   return issues;
 }
@@ -167,7 +223,7 @@ if (typeof process !== "undefined" && process.argv[1]?.endsWith("check-readme.ts
   const issues = checkReadmeSync();
   console.log("==> check-readme");
   if (issues.length === 0) {
-    console.log(passLine("check-readme", "README links, make targets and pictures resolve"));
+    console.log(passLine("check-readme", "README links, make targets and pictures resolve; the demo desk reaches no shipped build"));
   } else {
     for (const issue of issues) {
       console.log(`    FAIL: ${issue}`);

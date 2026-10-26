@@ -21,7 +21,7 @@ Lifecycle columns do not change OMP discovery, prompt exposure, `skill://`, or
 | Skill | Trigger | Verification | Lifecycle (project metadata) |
 |---|---|---|---|
 | `commit` | User asks to commit, push, publish, or prepare a verified commit | `make verify` succeeds before `make commit` / `make push`, and the remote branch contains the new commit | active |
-| `release` | User asks to release, deploy, ship, tag a version, install the published build, or undo a release | `make release bump=… DRY_RUN=1` shows the version and commits (and a note when the widget changed but `docs/demo.gif` did not); after a release, `make app-install` and `make doctor` report one installed copy | active |
+| `release` | User asks to release, deploy, ship, tag a version, install the published build, or undo a release | `make release bump=… DRY_RUN=1` shows the version and commits (and a note when the widget or the window changed but `docs/widgets.gif` and `docs/demo.gif` did not); after a release, `make app-install` and `make doctor` report one installed copy | active |
 
 ## Skill Harness (`enforced-by`)
 

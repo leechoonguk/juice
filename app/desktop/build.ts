@@ -4,8 +4,13 @@
  * to react-native-web (through `src/renderer/reactNative.ts`) and the two native
  * wrappers swapped for their `src/renderer/` counterparts.
  *
+ * `JUICE_DEMO=1` bundles the scripted desk of made-up devices (`src/demo/`) in
+ * place of the real battery providers, for `make demo` — the only build that
+ * ever contains it. Everything else is the real code.
+ *
  * Run with `make desktop-build`; node strips the types, so no compile step.
  */
+import { execFileSync } from 'node:child_process';
 import { copyFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,6 +24,24 @@ const icons = join(here, '..', 'macos', 'Juice-macOS', 'Assets.xcassets', 'AppIc
 const shared = join(here, '..', 'src');
 const production = process.env.NODE_ENV !== 'development';
 const renderer = join(here, 'src', 'renderer');
+const demo = process.env.JUICE_DEMO === '1';
+
+/** What `JUICE_DEMO=1` bundles in place of the real battery providers and updater: the desk `make demo` records. */
+const DEMO_BATTERY = join(here, 'src', 'demo', 'battery.ts');
+const DEMO_UPDATES = join(here, 'src', 'demo', 'updates.ts');
+const MAIN = join(here, 'src', 'main.ts');
+
+/** The window shows the latest release's version, as the installed app would. */
+const demoVersion = demo ? execFileSync('git', ['describe', '--tags', '--abbrev=0'], { encoding: 'utf8' }).trim().replace(/^v/, '') : '';
+
+/** The main process's battery and updater imports, answered by the demo desk instead; no other file is touched. */
+const demoDesk: esbuild.Plugin = {
+  name: 'demo-desk',
+  setup(build) {
+    build.onResolve({ filter: /^\.\/battery(?:\/linux)?$/ }, args => (args.importer === MAIN ? { path: DEMO_BATTERY } : undefined));
+    build.onResolve({ filter: /^\.\/updates$/ }, args => (args.importer === MAIN ? { path: DEMO_UPDATES } : undefined));
+  },
+};
 
 /** Imports from the shared code (`app/src`) that resolve to a desktop file instead. */
 const SWAPS: Array<[RegExp, string]> = [
@@ -62,6 +85,8 @@ await Promise.all([
     format: 'cjs',
     // dbus-next loads x11 only to reach a session bus through an X11 property; the system bus never does.
     external: ['electron', 'x11'],
+    plugins: demo ? [demoDesk] : [],
+    define: demo ? { __DEMO_VERSION__: JSON.stringify(demoVersion) } : {},
     minify: production,
   }),
   esbuild.build({
@@ -94,4 +119,4 @@ await Promise.all([
 copyFileSync(join(renderer, 'index.html'), join(out, 'index.html'));
 copyFileSync(join(icons, 'icon_512@2x.png'), join(out, 'icon.png'));
 copyFileSync(join(icons, 'icon_32.png'), join(out, 'tray.png'));
-console.log(`desktop bundle written to ${out}`);
+console.log(`desktop bundle written to ${out}${demo ? ' (demo desk)' : ''}`);

@@ -21,25 +21,31 @@ what the release script publishes.
    (`git log --oneline $(git describe --tags --abbrev=0)..HEAD`): `patch` fixes,
    `minor` new behaviour or settings, `major` a user must change something. If the
    user did not say, propose one and why — do not guess silently.
-3. The README's pictures must match the widget users will get (rule://root-readme).
-   If the widget, the shared snapshot types or the demo script changed since the
-   last tag, re-record them:
+3. The README's pictures must match what users will get (rule://root-readme).
+   If the widget, the shared snapshot types, the window (`app/src/screens`,
+   `app/src/theme.ts`, `app/desktop/src/renderer`) or the demo scripts changed
+   since the last tag, re-record them:
 
 ```bash
-git diff --stat $(git describe --tags --abbrev=0)..HEAD -- app/macos/JuiceWidget app/macos/Shared app/macos/CoreTests/WidgetSnapshots/main.swift
+git diff --stat $(git describe --tags --abbrev=0)..HEAD -- app/macos/JuiceWidget app/macos/Shared app/macos/CoreTests/WidgetSnapshots/main.swift app/src/screens app/src/theme.ts app/desktop/src/renderer app/desktop/demo.ts app/desktop/src/demo
 make demo
 make widget-snapshots
 ```
 
-   Look at the result before committing it — extract frames and view them:
-   `ffmpeg -ss 0.2 -i docs/demo.gif -frames:v 1 /tmp/demo-0.png`, and again at
-   about 4.5 s (the keyboard close to the threshold) and 8.5 s (red, the
-   headphones connected). Every device in it is made up; a real device name or
-   address must never appear. If a scene no longer shows what the widget does (a
-   changed layout, a new state), fix the script in
-   `app/macos/CoreTests/WidgetSnapshots/main.swift` and record again. Commit the
-   pictures (`commit` skill) so they are part of the released commit. The dry run
-   below prints a note when the drawing code changed and the pictures did not.
+   `make demo` records both moving pictures. Look at the result before
+   committing it — extract frames and view them. `docs/demo.gif` (the window,
+   about 13 s): `ffmpeg -ss 1 -i docs/demo.gif -frames:v 1 /tmp/demo-1.png`, and
+   again at about 5 s (the keyboard red), 9 s (a phone connected, the threshold
+   25%) and 12 s (30%, the phone red). `docs/widgets.gif` (10 s): at 0.2 s, about
+   4.5 s (the keyboard close to the threshold) and 8.5 s (red, the headphones
+   connected). Every device in them is made up; a real device name or address
+   must never appear. If a scene no longer shows what the app does (a changed
+   layout, a new state), fix the script (`app/desktop/demo.ts` and
+   `app/desktop/src/demo/battery.ts` for the window,
+   `app/macos/CoreTests/WidgetSnapshots/main.swift` for the widgets) and record
+   again. Commit the pictures (`commit` skill) so they are part of the released
+   commit. The dry run below prints a note when the drawing code changed and the
+   pictures did not.
 4. Independent review for user-facing changes (the widget, the menu bar behaviour, the
    settings, the update path, anything a user sees or that touches their Mac's
    registration state). Self-verification covers happy paths. Start a reviewer subagent

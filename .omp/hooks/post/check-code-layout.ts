@@ -205,6 +205,7 @@ function hygieneFiles(): string[] {
     join(projectRoot, "app", "metro.config.js"),
     join(projectRoot, "app", "react-native.config.js"),
     join(projectRoot, "app", "desktop", "build.ts"),
+    join(projectRoot, "app", "desktop", "demo.ts"),
     join(projectRoot, "app", "macos", "Podfile"),
     join(projectRoot, ".omp", "AGENTS.md"),
     join(projectRoot, ".omp", "RULES.md"),
