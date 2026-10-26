@@ -87,12 +87,23 @@ files.
 
 ```bash
 make app-install
+make app-smoke
 make doctor
+make battery-probe
 ```
 
 `app-install` installs the published disk image into `/Applications` and
 unregisters every build copy, so the widget gallery and Spotlight show one Juice.
+`make app-smoke` then drives that installed copy through Accessibility — open
+from the menu bar item, close and reopen three times, the opening and the
+minimum size — and every step must print `PASS`. It needs the user's GUI
+session and Accessibility permission for the terminal, and acts on elements,
+never screen coordinates: run it alone, with nothing else clicking in the menu
+bar, and report a missing permission instead of skipping it.
 `make doctor` must report no findings.
+`make battery-probe` must end with `coverage: every accessory macOS reports a
+level for was read` and exit 0: a `MISSING:` line is a battery the Mac reports
+and the reader lost.
 
 ## When It Fails
 

@@ -31,3 +31,17 @@ for device in snapshot.devices {
   let parts = device.parts.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)%" }.joined(separator: ", ")
   print("\(level)  \(device.name)  [\(device.kind)]  \(detail)\(parts.isEmpty ? "" : "  (\(parts))")")
 }
+
+// Coverage: every Bluetooth accessory battery macOS publishes as a power source
+// (`pmset -g accps`) must have reached the read. One that did not is a battery
+// the Mac knows and the app lost; the exit status says so, so a release step can gate on it.
+let missing = Battery.missingAccessories(
+  Battery.accessorySources(BatteryReader.powerSourceDescriptions()), in: snapshot.devices)
+if missing.isEmpty {
+  print("coverage: every accessory macOS reports a level for was read")
+} else {
+  for source in missing {
+    print("MISSING: \(source.name) — macOS reports \(source.percent)%\(source.part.map { " (\($0))" } ?? "") but the reader gave none")
+  }
+  exit(1)
+}

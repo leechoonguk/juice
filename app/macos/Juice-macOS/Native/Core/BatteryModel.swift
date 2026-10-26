@@ -224,6 +224,23 @@ enum Battery {
     return BatterySnapshot(devices: ordered, threshold: threshold, updatedAt: now)
   }
 
+  /// The accessory power sources whose level the read did not carry: the device
+  /// they belong to — by address, else by name, the earbuds' case as
+  /// `<name> Case` — is not listed, or is listed without that level (a single
+  /// battery's percent, an earbud's or case's part). What `make battery-probe`
+  /// checks, so a battery macOS reports and the app lost is found at once.
+  static func missingAccessories(_ sources: [AccessorySource], in devices: [DeviceLevel]) -> [AccessorySource] {
+    sources.filter { source in
+      !devices.contains { device in
+        let owns =
+          source.address == device.identifier || source.name == device.name
+          || (source.part == "case" && source.name == "\(device.name) Case")
+        guard owns else { return false }
+        return source.part.map { device.parts[$0] != nil } ?? (device.percent != nil)
+      }
+    }
+  }
+
   /// The snapshot as React Native receives it: plain JSON values, the time in
   /// milliseconds since 1970, which is what JavaScript's `Date` takes. A device
   /// without a level carries explicit nulls: the synthesized encoder omits nil

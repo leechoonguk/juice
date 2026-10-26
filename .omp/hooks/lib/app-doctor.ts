@@ -13,6 +13,14 @@
  *      WWDR G3 intermediate certificate (without it a fresh identity never validates)
  *   4. the toolchain: `xcode-select -p` is Xcode, not the Command Line Tools, when
  *      Xcode is installed
+ *   5. battery coverage: every Bluetooth accessory macOS has a level for
+ *      (`pmset -g accps`, the app's own source for headsets, trackpads and earbuds)
+ *      has that level in the snapshot the app last published to the App Group
+ *      container — matched by name, the earbuds' case as `<name> Case`; one the
+ *      snapshot lists without a level, or not at all, is a finding (a reader that
+ *      lost a device the Mac still knows the battery of); a container macOS keeps
+ *      from this shell (EPERM) is reported as skipped, not as a finding —
+ *      `make battery-probe` makes the comparison through the app's own reader
  *
  * Metro's port is reported too; `requireMetro` is what `make run` calls first,
  * because Debug loads its JavaScript from Metro and an empty window is the symptom
@@ -22,12 +30,15 @@
  *   node app-doctor.ts metro     exit 1 unless Metro answers on 8081
  *
  * Run through `make doctor` and `make run`. Reads Launch Services, pluginkit, the
- * keychain and the process table; registers, unregisters and installs nothing.
+ * keychain, the power sources, the published snapshot and the process table;
+ * registers, unregisters and installs nothing.
  */
 // @ts-expect-error — Node builtin, not project-compiled
 import { spawnSync } from "node:child_process";
 // @ts-expect-error — Node builtin, not project-compiled
 import { existsSync, readFileSync } from "node:fs";
+// @ts-expect-error — Node builtin, not project-compiled
+import { homedir } from "node:os";
 // @ts-expect-error — Node builtin, not project-compiled
 import { join } from "node:path";
 import { DEBUG_APP, INSTALLED_APP, registeredCopies, runningApps, widgetRegistrations } from "./app-launch-services.ts";
@@ -44,6 +55,11 @@ const WWDR_NAME = "Apple Worldwide Developer Relations Certification Authority";
 /** Said by `make run` and by the doctor alike: the one fix for a Debug app with no Metro. */
 export const METRO_MESSAGE = "Debug loads its JS from Metro — run `make start` first (or install a Release with `make app-install`)";
 
+/** What `SnapshotStore` writes (app/macos/Shared/BatterySnapshot.swift), under `<App Group>/Juice/`. */
+const SNAPSHOT_FILE = "batteries.json";
+/** The App Group is `$(TeamIdentifierPrefix)juice` (the `AppGroupIdentifier` of both Info.plists). */
+const APP_GROUP_SUFFIX = "juice";
+
 interface Section {
   title: string;
   lines: string[];
@@ -56,8 +72,8 @@ interface Section {
 /** Prints the report; the exit code is 1 when any section reports a finding. */
 export function doctor(): number {
   const findings: string[] = [];
-  const sections = [copies(findings), widget(findings), signing(findings), toolchain(findings), metro()];
-  console.log("==> doctor (read-only: Launch Services, pluginkit, keychain, processes)");
+  const sections = [copies(findings), widget(findings), accessories(findings), signing(findings), toolchain(findings), metro()];
+  console.log("==> doctor (read-only: Launch Services, pluginkit, power sources, published snapshot, keychain, processes)");
   for (const section of sections) {
     console.log(`${section.title}:`);
     for (const line of section.lines) console.log(`  ${line}`);
@@ -139,6 +155,34 @@ function widget(findings: string[]): Section {
   return section;
 }
 
+/** Every Bluetooth accessory macOS has a level for, against the snapshot the app last published. */
+function accessories(findings: string[]): Section {
+  const section: Section = { title: "accessory batteries (macOS power sources against the published snapshot)", lines: [] };
+  try {
+    const published = readSnapshot();
+    if (published === null) {
+      section.lines.push("battery coverage: skipped — macOS keeps Juice's container from this shell; `make battery-probe` compares instead");
+      return section;
+    }
+    const coverage = accessoryCoverage(accessorySources(powerSourceDescriptions()), published.devices);
+    const ageMinutes = Math.round((Date.now() - published.updatedAt) / 60_000);
+    section.lines.push(`snapshot: ${published.path.replace(homedir(), "~")}, published ${ageMinutes} min ago, ${published.devices.length} device(s)`);
+    if (coverage.length === 0) section.lines.push("macOS lists no Bluetooth accessory with a level");
+    for (const { source, status } of coverage) {
+      section.lines.push(`${accessoryLabel(source)}  ${source.percent}%  ${status}`);
+      if (status === "covered") continue;
+      findings.push(
+        `macOS has a level for ${accessoryLabel(source)} (${source.percent}%) but the snapshot ` +
+          `${status === "no level" ? "lists it without one" : "does not list it"} — the app's reader lost a battery the system still reports ` +
+          "(`make battery-probe` shows what the reader sees; `make app-logs` follows the refresh)",
+      );
+    }
+  } catch (error) {
+    findings.push(`accessory battery coverage is unverifiable: ${message(error)}`);
+  }
+  return section;
+}
+
 /** The signing chain: a valid identity of the project's team, and the WWDR G3 intermediate. */
 function signing(findings: string[]): Section {
   const section: Section = { title: "signing", lines: [] };
@@ -213,6 +257,138 @@ function projectTeams(): string[] {
   const path = join(projectRoot, PROJECT_FILE);
   if (!existsSync(path)) return [];
   return [...new Set([...readFileSync(path, "utf-8").matchAll(/DEVELOPMENT_TEAM = "?([A-Z0-9]+)"?;/g)].map((match) => match[1]))];
+}
+
+/** One Bluetooth accessory battery macOS publishes as a power source; `part` is `left`, `right` or `case` for earbuds, absent for one battery. */
+export interface AccessorySource {
+  name: string;
+  /** The Bluetooth address when `Accessory Identifier` is one; earbuds give a UUID. */
+  address?: string;
+  part?: string;
+  percent: number;
+}
+
+/** The device fields of the published snapshot (`DeviceLevel`) the coverage compares; the encoder omits a nil `percent`. */
+export interface SnapshotDevice {
+  name: string;
+  identifier: string;
+  percent?: number;
+  parts: Record<string, number>;
+}
+
+/** The power source fields `pmset -g accps -xml` carries that the coverage reads. */
+export interface PowerSource {
+  Type?: string;
+  Name?: string;
+  "Transport Type"?: string;
+  "Accessory Identifier"?: string;
+  "Current Capacity"?: number;
+  "Max Capacity"?: number;
+  "Part Identifier"?: string;
+  "Combined Parts"?: PowerSource[];
+}
+
+export interface AccessoryCoverage {
+  source: AccessorySource;
+  /** `covered`; `no level` when the snapshot lists the device without this level; `not listed` when it lists no such device. */
+  status: "covered" | "no level" | "not listed";
+}
+
+/**
+ * The Bluetooth accessory batteries among the power source descriptions
+ * `pmset -g accps -xml` prints — the rule `Battery.accessorySources` applies in
+ * the app: `Accessory Source`, transport `Bluetooth…`, earbuds as `Combined Parts`
+ * of which the `Combined` figure itself is not one.
+ */
+export function accessorySources(descriptions: PowerSource[]): AccessorySource[] {
+  return descriptions.flatMap((description): AccessorySource[] => {
+    const transport = description["Transport Type"];
+    if (description.Type !== "Accessory Source" || transport === undefined || !transport.startsWith("Bluetooth")) return [];
+    const combined = description["Combined Parts"];
+    if (combined !== undefined) return accessorySources(combined);
+    const current = description["Current Capacity"];
+    const maximum = description["Max Capacity"];
+    if (description.Name === undefined || current === undefined || maximum === undefined || maximum <= 0) return [];
+    const percent = Math.round((current * 100) / maximum);
+    const part = description["Part Identifier"]?.toLowerCase();
+    if (percent < 0 || percent > 100 || part === "combined") return [];
+    const identifier = description["Accessory Identifier"] ?? "";
+    return [
+      {
+        name: description.Name,
+        address: /^([0-9a-f]{2}[:-]){5}[0-9a-f]{2}$/i.test(identifier) ? identifier.toUpperCase().replace(/-/g, ":") : undefined,
+        part: part === undefined || part === "single" ? undefined : part,
+        percent,
+      },
+    ];
+  });
+}
+
+/**
+ * Each source against the snapshot's devices: a device is the source's own when
+ * its identifier is the source's address or its name is the source's name (the
+ * earbuds' case: `<device name> Case`), apostrophes alike. It has the level when
+ * it carries the part (`parts.left`, `parts.case`), or, for a single battery, a percent.
+ */
+export function accessoryCoverage(sources: AccessorySource[], devices: SnapshotDevice[]): AccessoryCoverage[] {
+  const plain = (name: string): string => name.replace(/[\u2018\u2019]/g, "'").trim();
+  return sources.map((source) => {
+    const own = devices.filter(
+      (device) =>
+        (source.address !== undefined && device.identifier.toUpperCase() === source.address) ||
+        plain(device.name) === plain(source.name) ||
+        (source.part === "case" && `${plain(device.name)} Case` === plain(source.name)),
+    );
+    const hasLevel = own.some((device) =>
+      source.part === undefined ? device.percent !== undefined : device.parts[source.part] !== undefined,
+    );
+    return { source, status: hasLevel ? "covered" : own.length > 0 ? "no level" : "not listed" };
+  });
+}
+
+/** `name` or `name (case)`. */
+function accessoryLabel(source: AccessorySource): string {
+  return source.part === undefined ? source.name : `${source.name} (${source.part})`;
+}
+
+/** `pmset -g accps -xml` — the text form is not UTF-8 and has no transport — one plist per source, each converted through `plutil`. */
+export function powerSourceDescriptions(): PowerSource[] {
+  const documents = run("pmset", ["-g", "accps", "-xml"]).split(/(?=<\?xml )/).filter((document) => document.trim() !== "");
+  return documents.flatMap((document) => {
+    const converted = spawnSync("plutil", ["-convert", "json", "-o", "-", "-"], { input: document, encoding: "utf8" });
+    if (converted.status !== 0) throw new Error(`plutil cannot read the power sources: ${String(converted.stderr).trim()}`);
+    const parsed: PowerSource | PowerSource[] = JSON.parse(String(converted.stdout));
+    return Array.isArray(parsed) ? parsed : [parsed];
+  });
+}
+
+/**
+ * The snapshot the app last published into its App Group container (`SnapshotStore`), with
+ * its path and time; null when macOS keeps the container from this shell, which protects
+ * another app's data and says nothing about the setup.
+ */
+function readSnapshot(): { path: string; devices: SnapshotDevice[]; updatedAt: number } | null {
+  const teams = projectTeams();
+  if (teams.length === 0) throw new Error("the Xcode project names no DEVELOPMENT_TEAM, so the App Group container is unknown");
+  for (const team of teams) {
+    const path = join(homedir(), "Library", "Group Containers", `${team}.${APP_GROUP_SUFFIX}`, "Juice", SNAPSHOT_FILE);
+    let text: string;
+    try {
+      text = readFileSync(path, "utf-8");
+    } catch (error) {
+      const code = error instanceof Error && "code" in error ? error.code : undefined;
+      if (code === "ENOENT") continue;
+      if (code === "EPERM" || code === "EACCES") return null;
+      throw error;
+    }
+    const snapshot: { devices: SnapshotDevice[]; updatedAt: number } = JSON.parse(text);
+    if (!Array.isArray(snapshot.devices) || typeof snapshot.updatedAt !== "number") {
+      throw new Error(`${path.replace(homedir(), "~")} is not a BatterySnapshot (devices, updatedAt) — the snapshot format changed`);
+    }
+    // Foundation's default date encoding is seconds since its reference date, 978_307_200 s after the Unix epoch.
+    return { path, devices: snapshot.devices, updatedAt: (snapshot.updatedAt + 978_307_200) * 1000 };
+  }
+  throw new Error(`no snapshot at ~/Library/Group Containers/<team>.${APP_GROUP_SUFFIX}/Juice/${SNAPSHOT_FILE} — the app has not published one yet (is Juice running?)`);
 }
 
 /** The PEM of the certificate behind an identity: the keychain entry named `name` whose SHA-1 is `hash`. */

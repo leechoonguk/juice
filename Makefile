@@ -1,5 +1,5 @@
 .PHONY: help install pods start run build app-logs typecheck lint test swift-check swift-test battery-probe app-icon widget-snapshots demo verify clean commit push \
-	dist release unrelease app-install doctor hook-report \
+	dist release unrelease app-install app-smoke doctor hook-report \
 	desktop-install desktop-build desktop-start desktop-typecheck desktop-dist android-apk android-widget-preview \
 	check-app-duplicate-blocks check-app-macos-project check-app-native-boundary check-code-layout check-makefiles \
 	check-omp-hooks check-omp-probes check-omp-rules check-omp-skills check-omp-types check-readme check-release check-tooling check-verify
@@ -137,10 +137,13 @@ clean: ## Remove build output and caches (the Debug app is unregistered first, s
 	cd $(APP) && npx jest --clearCache >/dev/null
 
 # Publishing stages the tree `verify` read: the `-- .` pathspec, from the repository root.
+# The message reaches the shell through the environment, never inside quotes and
+# never expanded by make: `m="fix: the hook's $$HOME"` arrives as typed.
+commit: export COMMIT_MESSAGE = $(value m)
 commit: verify ## Commit this project's verified changes (usage: make commit m="type(scope): subject")
-	@test -n '$(m)' || { echo 'usage: make commit m="type(scope): subject"' >&2; exit 2; }
+	@test -n "$$COMMIT_MESSAGE" || { echo 'usage: make commit m="type(scope): subject"' >&2; exit 2; }
 	@git add -A -- .
-	@git commit -q -m '$(m)' -- .
+	@git commit -q -m "$$COMMIT_MESSAGE" -- .
 	@git --no-pager log --oneline -1
 
 push: verify ## Push the current branch after the gate passes
@@ -161,7 +164,11 @@ unrelease: ## Delete a GitHub release and its tag (usage: make unrelease v=vX.Y.
 app-install: ## Install the published release into /Applications as the only registered Juice (build copies are unregistered)
 	node .omp/hooks/lib/app-release.ts install
 
-doctor: ## Report, read-only, every registered copy, the widget registration, the signing chain and the toolchain (exit 1 on a finding)
+# Needs a logged-in GUI session and Accessibility permission for the terminal, so it is not part of `verify`.
+app-smoke: ## Drive the running app's window through Accessibility: open from the menu bar item, close and reopen three times, check the opening and the minimum size, restore the size
+	node .omp/hooks/lib/app-smoke.ts
+
+doctor: ## Report, read-only, every registered copy, the widget registration, the accessory battery coverage, the signing chain and the toolchain (exit 1 on a finding)
 	node .omp/hooks/lib/app-doctor.ts
 
 hook-report: ## Report what the hooks cost, which warnings were acted on and which pre hooks blocked how often (from .omp/state/hook-metrics.jsonl)

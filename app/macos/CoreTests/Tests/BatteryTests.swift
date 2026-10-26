@@ -312,3 +312,35 @@ private let keyboardWithBattery: [UInt8] = [
 @Test func aDescriptorWithoutABatteryDeclaresNone() {
   #expect(HIDReportDescriptor.parse(Array(keyboardWithBattery.prefix(31))).battery.isEmpty)
 }
+
+// MARK: - Coverage of the accessory power sources
+
+/// A battery macOS reports and the read lost is named: its device is missing,
+/// listed without a level, or lacks that part (the earbuds' case lives in the
+/// device's `parts` under the name `<name> Case`).
+@Test func anAccessoryLevelTheReadLostIsMissing() {
+  let sources = Battery.accessorySources([
+    powerSource("Pad", 67), powerSource("Cans", 90), powerSource("Lost", 20),
+    powerSource("Buds", 80, part: "Left"), powerSource("Buds", 75, part: "Right"), powerSource("Buds Case", 40, part: "Case"),
+  ])
+  func device(_ name: String, percent: Int?, parts: [String: Int] = [:]) -> DeviceLevel {
+    DeviceLevel(name: name, identifier: "id-\(name)", percent: percent, parts: parts, source: nil, note: nil, kind: "other")
+  }
+  let everything = [
+    device("Pad", percent: 67), device("Cans", percent: 90),
+    device("Buds", percent: 40, parts: ["left": 80, "right": 75, "case": 40]),
+  ]
+  #expect(Battery.missingAccessories(sources, in: everything).map(\.name) == ["Lost"])
+  let withoutLevels = [device("Pad", percent: nil), device("Cans", percent: 90), device("Buds", percent: 75, parts: ["left": 80, "right": 75])]
+  #expect(Battery.missingAccessories(sources, in: withoutLevels).map(\.name) == ["Pad", "Lost", "Buds Case"])
+  #expect(Battery.missingAccessories(sources, in: []).count == sources.count)
+}
+
+/// A source that carries the device's address belongs to it whatever the name.
+@Test func anAccessoryAddressMatchesItsDeviceWhateverTheName() {
+  var source = powerSource("Pad", 50)
+  source["Accessory Identifier"] = "AA:00:00:00:00:05"
+  let sources = Battery.accessorySources([source])
+  let renamed = DeviceLevel(name: "Trackpad", identifier: "AA:00:00:00:00:05", percent: 50, parts: [:], source: nil, note: nil, kind: "trackpad")
+  #expect(Battery.missingAccessories(sources, in: [renamed]).isEmpty)
+}

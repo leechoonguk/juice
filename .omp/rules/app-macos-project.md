@@ -1,5 +1,5 @@
 ---
-description: Xcode project for the macOS app (Juice) — every native source in its target, team signing, one App Group, one product name, a menu bar app that outlives its window, Bluetooth usage declared, one build location
+description: Xcode project for the macOS app (Juice) — every native source in its target, team signing, one App Group, one product name, a menu bar app that outlives its window and can reopen it, Bluetooth usage declared, one build location
 globs:
       - app/macos/Juice.xcodeproj/project.pbxproj
       - app/macos/Juice-macOS/Info.plist
@@ -59,6 +59,12 @@ through symlinks, never by membership.
   delegate returns `false` from `applicationShouldTerminateAfterLastWindowClosed`
   — the widget only shows what the running app last published, and the menu
   bar item is the app.
+- **The main window is the app's own.** With `LSUIElement` set, "Open Juice" in
+  the menu bar item must reopen the window at any time, so AppDelegate owns an
+  `NSWindow` and keeps it (`isReleasedWhenClosed = false`), and the only SwiftUI
+  scene is `Settings { EmptyView() }`. A `Window(` or `WindowGroup(` scene is
+  dropped by SwiftUI once the user closes it, and the menu then opens nothing —
+  measured on this app, and invisible to the build.
 - **Bluetooth is declared.** The app target uses CoreBluetooth and IOBluetooth,
   so its Info.plist carries `NSBluetoothAlwaysUsageDescription`; macOS kills the
   process at the first Bluetooth call without it. The app is not sandboxed
@@ -107,7 +113,14 @@ through symlinks, never by membership.
   registration pluginkit chose against the app that runs, the code-signing
   identity against the project's `DEVELOPMENT_TEAM`, Apple's WWDR G3
   intermediate, `xcode-select -p`, and Metro. Its findings name the fix; a
-  clean report rules the environment out in seconds.
+  clean report rules the environment out in seconds. It also compares every
+  Bluetooth accessory macOS has a level for (`pmset -g accps`; the earbuds'
+  case as `<name> Case`) with the snapshot the app last published in its App
+  Group container, and reports each one the snapshot lists without a level or
+  not at all — a battery the Mac knows and the app lost. The container is
+  another app's protected data: when macOS keeps it from the shell (`EPERM`) the
+  line reads "skipped" and is not a finding — `make battery-probe` makes the
+  same comparison through the app's own reader and exits non-zero on a miss.
 - **Signing identity.** `make build` needs an *Apple Development* identity for
   the project's team in the login keychain (Xcode › Settings › Accounts ›
   Manage Certificates). If `security find-identity -v -p codesigning` lists
@@ -133,6 +146,17 @@ through symlinks, never by membership.
   gallery and the placed widgets pick up the new build.
 - **`make app-logs`** streams the log lines of the running app and its widget
   extension (`log stream`, filtered by process name).
+- **`make app-smoke`** drives the running app's window through Accessibility
+  (`lib/app-smoke.ts`): "Open Juice" from the menu bar item, the close button,
+  and the reopen three times; the opening size (the saved frame, else 680×520
+  content) and that shrinking stops at the minimum (560×440 content); then the
+  size it found is set back. It prints PASS/FAIL per step and fails clearly when
+  Accessibility is not allowed for the terminal or Juice is not running. It
+  needs a logged-in GUI session, so it is not a `verify` gate: run it after
+  `make app-install` or `make run`, on any change to the window or the menu.
+  The calls are separate `osascript` runs with pauses — one long `tell` block
+  raced the window list — and two GUI drivers at once (another agent clicking
+  its own menu bar item) make windows vanish mid-run: run it alone.
 - **Observation is lost, not postponed.** `log show` keeps only `notice` and
   above for any span that has passed, and only after a few minutes — an `info`
   line the code printed is gone by the time it is asked for. Anything a
@@ -166,10 +190,11 @@ through symlinks, never by membership.
 entitlements files — it builds nothing and contacts no device. It is dormant
 (cause `absent`) while the Xcode project does not exist.
 
-The Mac's own state — registered copies, the widget registration, the signing
-chain, the toolchain — is not a tree property, so it is not a `verify` gate:
-`make doctor` (`lib/app-doctor.ts`, read-only) reports it on demand and `make
-run` acts on it (Metro, stray copies).
+The Mac's own state — registered copies, the widget registration, the accessory
+battery coverage, the signing chain, the toolchain — is not a tree property, so
+it is not a `verify` gate: `make doctor` (`lib/app-doctor.ts`, read-only)
+reports it on demand and `make run` acts on it (Metro, stray copies). The
+window's behaviour likewise needs a GUI session: `make app-smoke`.
 
 ## Never Do These
 
@@ -179,6 +204,8 @@ run` acts on it (Metro, stray copies).
 - Rename the app in one of `PRODUCT_NAME` / `CFBundleDisplayName` only
 - Share state between the app and the widget through `UserDefaults(suiteName:)`
 - Let the menu bar app terminate when its window closes
+- Create the main window of an `LSUIElement` app as a SwiftUI `Window`/`WindowGroup`
+  scene, or release its `NSWindow` when closed — the menu cannot reopen it
 - Build with `react-native run-macos`, Xcode's default DerivedData, or an
   `xcodebuild` without `-derivedDataPath` — each leaves another Juice.app listed
 - Delete a build directory without unregistering its app (`make clean` does both)
