@@ -24,7 +24,12 @@
  *    `make lint`, `make typecheck`, `make swift-check`, a `make check-*`)
  *    succeeded after the last change and the session is about to end, it is
  *    sent back to verify. The full root `make verify` runs at commit time
- *    (`make commit` / `make push`).
+ *    (`make commit` / `make push`). A change is a write inside this project;
+ *    a verification is judged per command segment, and a run that was seen
+ *    but not counted is named in the message. Measured: a scratch file under
+ *    /tmp armed the gate, five `git status | wc -l; make …` runs were each
+ *    discarded for the unrelated pipe, and the same sentence came back five
+ *    times without saying why.
  *
  * This module only nudges. It does not touch context — window management
  * belongs to omp.
@@ -33,7 +38,7 @@
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 // @ts-expect-error — Node builtin, not project-compiled
 import { join, resolve } from "node:path";
-import { projectRoot } from "../../hooks/lib/hook-project-root.ts";
+import { isInsideProject, projectRoot, toolPath } from "../../hooks/lib/hook-project-root.ts";
 
 /**
  * A verification that releases the finish gate: any command that covers the
@@ -41,6 +46,8 @@ import { projectRoot } from "../../hooks/lib/hook-project-root.ts";
  * the end of every task cost minutes per run and ran several times per task.
  */
 const VERIFY_RE = /\bmake\b[^|;&]*\b(?:(?:verify|test)\b|lint\b|typecheck\b|swift-check\b|check-[a-z-]+)|\bnode\s+\.omp\/hooks\/post\/check-[a-z-]+\.ts\b/;
+/** The filters that drop a gate's lines and its exit code with them. */
+const TRUNCATION_RE = /\|\s*(?:tail|head|grep|sed|awk|wc)\b/;
 /** Red-finish re-drives. */
 const END_GATE_MAX = 2;
 /**
@@ -91,6 +98,7 @@ export function registerDiscipline(pi: DisciplineApi): void {
   const persisted = loadPersisted();
   let lastGateAt = persisted.lastGateAt ?? 0, lastNoticeAt = persisted.lastNoticeAt ?? 0, gateBlocks = 0;
   let lastMutationAt = 0;
+  let pipedAt = 0, pipedRun = "";
   let redSig: string | null = null;
   let redCmdTk: Set<string> | null = null;
   const regFiles = registrationFiles();
@@ -130,16 +138,18 @@ export function registerDiscipline(pi: DisciplineApi): void {
       const toolName = String(event.toolName ?? "");
       const content = contentText(event.content);
       if (event.isError && isPolicyBlock(content)) return;
-      const f = failSig(content);
+      const command = typeof event.input?.command === "string" ? event.input.command : "";
+      const f = failSig(content) ?? (/^bash/i.test(toolName) ? reportedFailure(command, content) : null);
       // A standing harness-check notice: a finish on top of it is a fake finish.
       if (/\[check-[a-z-]+\][^]{0,60}issue/.test(content)) { lastNoticeAt = Date.now(); savePersisted({ lastNoticeAt }); }
       if (/^bash/i.test(toolName)) {
         const cmdStr = norm(str(event.input)).slice(0, 300);
         const cmdTk = new Set(cmdStr.toLowerCase().match(/[a-z0-9_]+/g) ?? []);
-        const truncated = /\|\s*(?:tail|head|grep|sed|awk|wc)\b/.test(cmdStr);
-        const verified = !truncated && VERIFY_RE.test(cmdStr);
+        const truncated = TRUNCATION_RE.test(cmdStr);
+        const { verified, piped } = verification(command || cmdStr);
+        if (piped) { pipedAt = Date.now(); pipedRun = piped; }
         if (!event.isError) {
-          for (const wp of shellWritePaths(cmdStr)) {
+          for (const wp of shellWritePaths(cmdStr, event)) {
             mutatedEver = true; lastMutationAt = Date.now(); regCheck(wp);
           }
         }
@@ -160,7 +170,7 @@ export function registerDiscipline(pi: DisciplineApi): void {
       if (!f && !event.isError && isMutating(toolName)) {
         mutatedEver = true;
         const path = String(event.input?.path ?? "").replace(/#[0-9A-Fa-f]{4}$/, "");
-        if (path) { lastMutationAt = Date.now(); regCheck(path); }
+        if (path && inProject(path, event)) { lastMutationAt = Date.now(); regCheck(path); }
         else if (/^bash/i.test(toolName)) regCheck(norm(str(event.input)).slice(0, 300));
         // Schema-independent backstop: a patch-form result names its file as
         // `[path#TAG]` in the result text even when the input carries no path.
@@ -218,6 +228,9 @@ export function registerDiscipline(pi: DisciplineApi): void {
             ? "a harness check notice was raised after your last successful verification"
             : "nothing has verified your last change";
           let bmsg = `You are finishing, but ${why}. Run the checks that cover what you changed (\`make test\`, \`make lint\`, \`make typecheck\`, \`make swift-check\`, or the relevant \`make check-*\`), address what they or a standing system-notice report, and only then finish. The full root \`make verify\` runs at commit time (\`make commit\`) — do not run it here.`;
+          if (!noticeStanding && pipedAt > lastMutationAt && pipedAt > lastGateAt) {
+            bmsg += ` A verification you ran since was not counted: \`${pipedRun}\` pipes the check through a filter, which drops its lines and its exit code. Run it without the pipe (\`make <target> > file 2>&1; echo EXIT=$?\`) and read the file.`;
+          }
           if (gateBlocks >= 3) bmsg += " The single next action is exactly: run the checks covering the files you changed";
           pi.sendUserMessage(bmsg);
           log(`FINISH-BLOCK #${gateBlocks}`);
@@ -268,11 +281,45 @@ function savePersisted(patch: Persisted): void {
   } catch { /* hooks and extensions never throw */ }
 }
 
-function shellWritePaths(cmd: string): string[] {
+/**
+ * Whether a shell command verified, judged per command segment: the pipe in
+ * `git status | wc -l; make test` says nothing about the `make test` after it.
+ * `piped` names the verifying segment when every one of them was filtered.
+ */
+function verification(command: string): { verified: boolean; piped: string | null } {
+  const runs = command.split(/\n|;|&&|\|\|/).filter((segment) => VERIFY_RE.test(segment));
+  const cut = runs.filter((segment) => TRUNCATION_RE.test(segment));
+  const verified = runs.length > cut.length;
+  return { verified, piped: !verified && cut.length > 0 ? norm(cut[0]).slice(0, 120) : null };
+}
+
+/**
+ * The non-zero statuses a verifying command printed itself (`make test > log
+ * 2>&1; echo EXIT=$?`, or `printf 'EXIT=%s\n' "$status"`). With the check's
+ * output in a file and an `echo` last, neither a failure line nor the shell's
+ * exit code reaches the result: the printed status is all that says it failed.
+ */
+function reportedFailure(command: string, content: string): string | null {
+  if (!VERIFY_RE.test(command)) return null;
+  const labels = new Set([...command.matchAll(/\b([A-Z][A-Z0-9_]*)=(?:\$\?|%s)/g)].map((m) => m[1]));
+  const failed = (content.match(/^[A-Z][A-Z0-9_]*=[1-9]\d*$/gm) ?? []).filter((line) => labels.has(line.split("=")[0]));
+  return failed.length ? `${failed.join(" | ")} — a check printed a failing exit status` : null;
+}
+
+/**
+ * Only a path inside this project is a change its checks can cover: a scratch
+ * file under /tmp or an internal URL (`local://…`) is not.
+ */
+function inProject(path: string, event: unknown): boolean {
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(path)) return false;
+  try { return isInsideProject(toolPath(path, event)); } catch { return true; }
+}
+
+function shellWritePaths(cmd: string, event: unknown): string[] {
   const out: string[] = [];
   for (const m of cmd.matchAll(SHELL_WRITE_RE)) {
     const q = m[2];
-    if (!q || /^\/dev\//.test(q) || /^\/tmp\//.test(q)) continue;
+    if (!q || /^\/dev\//.test(q) || !inProject(q, event)) continue;
     out.push(q.replace(/^\.\//, ""));
   }
   return out;
