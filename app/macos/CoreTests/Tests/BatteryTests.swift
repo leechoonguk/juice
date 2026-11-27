@@ -313,6 +313,23 @@ private let keyboardWithBattery: [UInt8] = [
   #expect(HIDReportDescriptor.parse(Array(keyboardWithBattery.prefix(31))).battery.isEmpty)
 }
 
+/// The battery collection of a Bluetooth keyboard's descriptor as captured: a
+/// one-byte Battery Strength, 0–255, alone in input report 3. Asked for that
+/// report it answers eight bytes — the ID, the level, then its own Bluetooth
+/// address (a placeholder here). The level is real: it read 0x03 for days,
+/// through a full charge, and 0xA2 once the keyboard was switched off and on.
+@Test func aLevelIsReadFromAnAnswerLongerThanTheDeclaredReport() throws {
+  let descriptor: [UInt8] = [
+    0x05, 0x0C, 0x09, 0x01, 0xA1, 0x01, 0x85, 0x03,
+    0x05, 0x01, 0x09, 0x06, 0xA1, 0x02,
+    0x05, 0x06, 0x09, 0x20, 0x15, 0x00, 0x26, 0xFF, 0x00, 0x75, 0x08, 0x95, 0x01, 0x81, 0x02,
+    0xC0, 0xC0,
+  ]
+  let battery = try #require(HIDReportDescriptor.parse(descriptor).battery.first { $0.report == "input" })
+  #expect(battery.percent(in: [0x03, 0x03, 0xAA, 0x00, 0x00, 0x00, 0x00, 0x01]) == 1)
+  #expect(battery.percent(in: [0x03, 0xA2, 0xAA, 0x00, 0x00, 0x00, 0x00, 0x01]) == 63)
+}
+
 // MARK: - Coverage of the accessory power sources
 
 /// A battery macOS reports and the read lost is named: its device is missing,
