@@ -89,6 +89,7 @@ final class BatteryMonitor {
     queue.async { [reader] in
       reader.read { devices in
         DispatchQueue.main.async {
+          let devices = self.calibrated(devices)
           self.devices = devices
           self.lastRead = Date()
           Self.log.notice("read \(devices.count) devices")
@@ -159,5 +160,19 @@ final class BatteryMonitor {
       UNUserNotificationCenter.current().add(
         UNNotificationRequest(identifier: "low-\(device.identifier)", content: content, trigger: nil))
     }
+  }
+
+  /// `devices` on each device's learned scale; what was learned is kept across launches.
+  private func calibrated(_ devices: [DeviceBattery]) -> [DeviceBattery] {
+    var calibration =
+      defaults.data(forKey: "calibration").flatMap { try? JSONDecoder().decode(LevelCalibration.self, from: $0) }
+      ?? LevelCalibration()
+    let before = calibration.ceilings
+    let scaled = calibration.apply(to: devices, at: Date())
+    if let data = try? JSONEncoder().encode(calibration) { defaults.set(data, forKey: "calibration") }
+    if calibration.ceilings != before {
+      Self.log.notice("calibration: HID ceilings now \(calibration.ceilings.values.sorted(), privacy: .public)")
+    }
+    return scaled
   }
 }

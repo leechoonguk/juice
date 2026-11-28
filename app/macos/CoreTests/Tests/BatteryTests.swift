@@ -272,6 +272,102 @@ private func snapshot(_ levels: [String: Int], threshold: Int = 20) -> BatterySn
   #expect(alerts.evaluate(snapshot(["Board": 15])).isEmpty)
 }
 
+// MARK: - The scale a HID report really uses
+
+/// One device's levels fed in turn, a day apart unless a test says otherwise.
+private struct Feed {
+  var calibration = LevelCalibration()
+  var now = Date(timeIntervalSince1970: 0)
+
+  /// Each level as shown.
+  mutating func shown(_ levels: [Int], every interval: TimeInterval = 86_400) -> [Int] {
+    levels.map { level in
+      defer { now += interval }
+      return calibration.level(level, for: "Board", at: now)
+    }
+  }
+}
+
+@Test func aLevelIsScaledOnceThreeChargesEndedAtTheSameLevel() {
+  var feed = Feed()
+  // Two charges ending at 70 and a third reaching 69: until then every level is shown as read.
+  #expect(feed.shown([30, 70, 40, 70, 40]) == [30, 70, 40, 70, 40])
+  #expect(feed.calibration.ceilings.isEmpty)
+  #expect(feed.shown([69, 35, 14, 71]) == [99, 50, 20, 100])
+  #expect(feed.calibration.ceilings == ["Board": 71])
+}
+
+/// The levels a keyboard gave over a week, as captured: a stale 1% through a
+/// charge, then 63%, 69% and 70% after switching it off and on. One climb is one
+/// charge, so nothing is scaled yet.
+@Test func oneChargeIsNotEnoughToScaleALevel() {
+  var feed = Feed()
+  #expect(feed.shown([1, 1, 63, 63, 63, 69, 69, 70]) == [1, 1, 63, 63, 63, 69, 69, 70])
+  #expect(feed.calibration.ceilings.isEmpty)
+}
+
+@Test func chargesThatEndAtDifferentLevelsScaleNothing() {
+  var feed = Feed()
+  let levels = [20, 50, 30, 65, 40, 80, 45, 58, 30, 72, 40]
+  #expect(feed.shown(levels) == levels)
+  #expect(feed.calibration.ceilings.isEmpty)
+}
+
+/// A level that drops faster than a battery drains is a glitch, not a
+/// discharge: a device flapping between a stale low and its real level a
+/// quarter-hour apart has not been charged three times.
+@Test func aLevelFlappingToAStaleLowIsNotACharge() {
+  var feed = Feed()
+  let levels = [60, 1, 60, 1, 60, 1, 60, 40, 25, 15, 12]
+  #expect(feed.shown(levels, every: 900) == levels)
+  #expect(feed.calibration.ceilings.isEmpty)
+}
+
+@Test func oneChargeThatSagsAndRecoversIsOneCharge() {
+  var feed = Feed()
+  let levels = [30, 80, 70, 80, 70, 80, 60, 40]
+  #expect(feed.shown(levels, every: 900) == levels)
+  #expect(feed.calibration.ceilings.isEmpty)
+}
+
+@Test func aLevelClearAboveTheCeilingDisprovesIt() {
+  var feed = Feed()
+  _ = feed.shown([30, 70, 40, 70, 40, 70])
+  #expect(feed.calibration.ceilings == ["Board": 70])
+  #expect(feed.shown([80, 40]) == [80, 40])
+  #expect(feed.calibration.ceilings.isEmpty)
+}
+
+@Test func aDeviceThatFillsItsRangeIsNeverScaled() {
+  var feed = Feed()
+  let levels = [96, 30, 70, 40, 70, 40, 70, 35]
+  #expect(feed.shown(levels) == levels)
+}
+
+@Test func aCeilingFollowsAnAgeingBatteryDown() {
+  var feed = Feed()
+  _ = feed.shown([30, 70, 40, 70, 40, 70, 40])
+  // Charges now end at 64: the old ceiling stands while a charge at 70 is among the last five.
+  #expect(feed.shown([64, 40, 64, 40]) == [91, 57, 91, 57])
+  _ = feed.shown([64, 40, 64, 40])
+  #expect(feed.calibration.ceilings == ["Board": 70])
+  _ = feed.shown([64, 40])
+  #expect(feed.calibration.ceilings == ["Board": 64])
+}
+
+@Test func onlyLevelsFromAHIDReportAreScaled() {
+  var feed = Feed()
+  _ = feed.shown([30, 70, 40, 70, 40, 70])
+  let devices = [
+    DeviceBattery(
+      name: "Board", identifier: "Board", kind: "keyboard",
+      readings: [BatteryReading(part: nil, percent: 35, source: "HID report")]),
+    DeviceBattery(
+      name: "Pad", identifier: "Pad", kind: "trackpad", readings: [BatteryReading(part: nil, percent: 35, source: "system")]),
+  ]
+  #expect(feed.calibration.apply(to: devices, at: feed.now).map { $0.readings.first?.percent } == [50, 35])
+}
+
 // MARK: - HID report descriptors
 
 /// A keyboard application (report 1) and a consumer application whose report 3

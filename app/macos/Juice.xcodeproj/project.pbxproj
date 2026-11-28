@@ -26,6 +26,7 @@
 		B00A0ADA174AACB0CF2B9D72 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 234237712E4DA390D02FB3CD /* Cocoa.framework */; };
 		BCD8B4BAE4364490844909F8 /* JuiceWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = C82020BC345AF137B42A5B25 /* JuiceWidget.swift */; };
 		D4E5F60718293A4B5C6D7E8F /* LowBatteryAlerts.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2E3F4A5B6C7D8E9F0A1B2C3 /* LowBatteryAlerts.swift */; };
+		D4E5F60718293A4B5C6D7E90 /* LevelCalibration.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2E3F4A5B6C7D8E9F0A1B2C4 /* LevelCalibration.swift */; };
 		D8AE45576FF34B8F6CC4C87C /* JuiceBatteryModule.m in Sources */ = {isa = PBXBuildFile; fileRef = DFA8C8C4218045FD6DD9B62C /* JuiceBatteryModule.m */; };
 		DEC7E4C9B249EDAF9674C29D /* BatteryReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5A6400A85563AF77FB300A1 /* BatteryReader.swift */; };
 		E195981E0D15B3081AC2903E /* BatteryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C7C8B948664A11654E8B00 /* BatteryModel.swift */; };
@@ -83,6 +84,7 @@
 		A5A6400A85563AF77FB300A1 /* BatteryReader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BatteryReader.swift; sourceTree = "<group>"; };
 		C82020BC345AF137B42A5B25 /* JuiceWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = JuiceWidget.swift; sourceTree = "<group>"; };
 		D2E3F4A5B6C7D8E9F0A1B2C3 /* LowBatteryAlerts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LowBatteryAlerts.swift; sourceTree = "<group>"; };
+		D2E3F4A5B6C7D8E9F0A1B2C4 /* LevelCalibration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LevelCalibration.swift; sourceTree = "<group>"; };
 		DFA8C8C4218045FD6DD9B62C /* JuiceBatteryModule.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = JuiceBatteryModule.m; sourceTree = "<group>"; };
 		E8F3AE111957C4E0472D0C22 /* JuiceWidget.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = JuiceWidget.entitlements; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
@@ -225,6 +227,7 @@
 				3B7E1A9C2D4F6081A3C5E7FA /* RefreshPolicy.swift */,
 				3B7E1A9C2D4F6081A3C5E7FC /* BluetoothEvents.swift */,
 				D2E3F4A5B6C7D8E9F0A1B2C3 /* LowBatteryAlerts.swift */,
+				D2E3F4A5B6C7D8E9F0A1B2C4 /* LevelCalibration.swift */,
 				F247C0F0C60E647E3CED4912 /* BatteryMonitor.swift */,
 				5A1E0C0D0E0F101112131416 /* AppUpdates.swift */,
 			);
@@ -437,6 +440,7 @@
 				5A1E0C0D0E0F101112131417 /* AppUpdatesModule.swift in Sources */,
 				5A1E0C0D0E0F101112131419 /* AppUpdatesModule.m in Sources */,
 				D4E5F60718293A4B5C6D7E8F /* LowBatteryAlerts.swift in Sources */,
+				D4E5F60718293A4B5C6D7E90 /* LevelCalibration.swift in Sources */,
 				40FF82D82B6C03E05D1B37C2 /* BatteryMonitor.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

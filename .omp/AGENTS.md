@@ -59,7 +59,7 @@ app/                          React Native + react-native-macos, TypeScript, npm
     Juice.xcodeproj                    targets, signing, App Group (rule://app-macos-project)
     Shared/BatterySnapshot.swift       compiled into both the app and the widget
     Juice-macOS/AppDelegate.swift      menu bar app entry (Juice.app)
-    Juice-macOS/Native/Core/*.swift    React-free engine: BatteryReader, BatteryMonitor, RefreshPolicy (when to read), BluetoothEvents (what says a level changed), LowBatteryAlerts, HIDDescriptor, BatteryModel, StatusItemController, AppUpdates
+    Juice-macOS/Native/Core/*.swift    React-free engine: BatteryReader, BatteryMonitor, RefreshPolicy (when to read), BluetoothEvents (what says a level changed), LowBatteryAlerts, LevelCalibration (the scale a HID report really uses), HIDDescriptor, BatteryModel, StatusItemController, AppUpdates
     Juice-macOS/Native/*.swift, *.m    RN native module adapters (Swift + ObjC RCT_EXTERN)
     JuiceWidget/*.swift, Info.plist, *.entitlements   WidgetKit extension
     CoreTests/                         SwiftPM: JuiceCore tests, juice-probe, juice-icon, juice-widget-snapshots

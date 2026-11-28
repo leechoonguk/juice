@@ -34,6 +34,8 @@ are judged again. `make demo` records it.</sub>
   threshold, so a level that wobbles by one does not repeat itself.
 - **Reads every source.** The system's own battery property, a keyboard's HID
   battery report, and the standard Bluetooth LE battery characteristic.
+  A keyboard whose report tops out below 100% when full is shown on its own
+  scale once three charges have ended at the same level.
   Some keyboards report their battery only as a HID report, which macOS lets an
   app read after you grant Juice *Input Monitoring* (System Settings › Privacy &
   Security); the window offers a shortcut when it is missing.
